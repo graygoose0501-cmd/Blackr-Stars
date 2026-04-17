@@ -24,9 +24,9 @@ user_orders = {}
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 Купити TON"), KeyboardButton("💵 Купити USDT"))
-    markup.row(KeyboardButton("👤 Профіль"), KeyboardButton("⭐ Відгуки"))
-    markup.row(KeyboardButton("🛠 Служба підтримки"), KeyboardButton("🧮 Калькулятор"))
+    markup.row(KeyboardButton("💎 Купить TON"), KeyboardButton("💵 Купити USDT"))
+    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("⭐ Відгуки"))
+    markup.row(KeyboardButton("🛠 Служба поддержки"), KeyboardButton("🧮 Калькулятор"))
     return markup
 
 def generate_order_id():
@@ -34,19 +34,19 @@ def generate_order_id():
 
 def confirm_button(order_id, user_id):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Підтвердити заказ", callback_data=f"confirm_{order_id}_{user_id}"))
+    markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_id}_{user_id}"))
     return markup
 
 def leave_comment_button():
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("💬 Залишити коментар", callback_data="leave_comment"))
+    markup.add(InlineKeyboardButton("💬 Оставить коментарии", callback_data="leave_comment"))
     return markup
 
-MENU_BUTTONS = ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]
+MENU_BUTTONS = ["💎 Купить TON", "💵 Купить USDT", "👤 Профиль", "⭐ Отзывы", "🛠 Служба поддержки", "🧮 Калькулятор"]
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "Привіт! Вибери дію:", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "Здравствуйте! Виберете действие:", reply_markup=main_menu())
 
 # ========== TON ==========
 
@@ -75,7 +75,7 @@ def process_ton_amount(message):
         )
         bot.register_next_step_handler(msg, process_ton_wallet, amount, total)
     except ValueError:
-        msg = bot.send_message(message.chat.id, "❌ Введіть число! Наприклад: 1.5", reply_markup=main_menu())
+        msg = bot.send_message(message.chat.id, "❌ Введите число! Например: 1.5", reply_markup=main_menu())
         bot.register_next_step_handler(msg, process_ton_amount)
 
 def process_ton_wallet(message, amount, total):
@@ -278,7 +278,7 @@ def confirm_order(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "leave_comment")
 def leave_comment(call):
-    msg = bot.send_message(call.message.chat.id, "✍️ Напишіть ваш коментар:")
+    msg = bot.send_message(call.message.chat.id, "✍️ Напишите свой коментарии:")
     bot.register_next_step_handler(msg, save_comment)
     bot.answer_callback_query(call.id)
 
@@ -290,7 +290,7 @@ def save_comment(message):
     order_data["pending_comment"] = message.text
     user_orders[message.chat.id] = order_data
 
-    bot.send_message(message.chat.id, "📸 Тепер відправте фото для відгуку:")
+    bot.send_message(message.chat.id, "📸 Теперь отправьте фото для отзыва:")
 
 def save_comment_photo(message):
     order_data = user_orders.get(message.chat.id, {})
@@ -315,7 +315,7 @@ def save_comment_photo(message):
         f"📅 Дата: {date}"
     )
 
-    bot.send_message(message.chat.id, "⭐ Дякуємо за ваш відгук!", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
 
     # В канал
     bot.send_photo(REVIEWS_CHANNEL_ID, photo, caption=caption)
@@ -327,30 +327,30 @@ def save_comment_photo(message):
 # ========== МЕНЮ ==========
 
 def handle_menu(message):
-    if message.text == "💎 Купити TON":
+    if message.text == "💎 Купить TON":
         buy_ton(message)
-    elif message.text == "💵 Купити USDT":
+    elif message.text == "💵 Купить USDT":
         buy_usdt(message)
-    elif message.text == "👤 Профіль":
+    elif message.text == "👤 Профиль":
         profile(message)
-    elif message.text == "⭐ Відгуки":
+    elif message.text == "⭐ Отзывы":
         reviews(message)
-    elif message.text == "🛠 Служба підтримки":
+    elif message.text == "🛠 Служба поддержки":
         support(message)
     elif message.text == "🧮 Калькулятор":
         calculator(message)
 
-@bot.message_handler(func=lambda m: m.text == "👤 Профіль")
+@bot.message_handler(func=lambda m: m.text == "👤 Профиль")
 def profile(message):
-    bot.send_message(message.chat.id, "Твій профіль...", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "Твой профиль...", reply_markup=main_menu())
 
-@bot.message_handler(func=lambda m: m.text == "⭐ Відгуки")
+@bot.message_handler(func=lambda m: m.text == "⭐ Отзывы")
 def reviews(message):
-    bot.send_message(message.chat.id, "Відгуки...", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "Отзывы...", reply_markup=main_menu())
 
-@bot.message_handler(func=lambda m: m.text == "🛠 Служба підтримки")
+@bot.message_handler(func=lambda m: m.text == "🛠 Служба поддержки")
 def support(message):
-    bot.send_message(message.chat.id, "Підтримка...", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "Поддержка...", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "🧮 Калькулятор")
 def calculator(message):
