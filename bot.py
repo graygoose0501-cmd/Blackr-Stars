@@ -24,8 +24,8 @@ user_orders = {}
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 Купить TON"), KeyboardButton("💵 Купити USDT"))
-    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("⭐ Відгуки"))
+    markup.row(KeyboardButton("💎 Купить TON"), KeyboardButton("💵 Купить USDT"))
+    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("⭐ Отзывы"))
     markup.row(KeyboardButton("🛠 Служба поддержки"), KeyboardButton("🧮 Калькулятор"))
     return markup
 
