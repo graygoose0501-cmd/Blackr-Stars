@@ -18,6 +18,7 @@ BANK_NAME = "Monobank🐾"
 # ==================================
 
 ADMINS = [6227572453, 6794644473]
+REVIEWS_CHANNEL_ID = -1003764314898  # ← свій ID каналу
 user_orders = {}
 
 def main_menu():
@@ -275,6 +276,18 @@ def save_comment(message):
 
     bot.send_message(message.chat.id, "⭐ Дякуємо за ваш відгук!", reply_markup=main_menu())
 
+    # Відправка в канал
+    bot.send_message(
+        REVIEWS_CHANNEL_ID,
+        f"⭐ Новый отзыв\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Покупатель: {username}\n"
+        f"📞 Заказ: #{order_id}\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"💬 {message.text}"
+    )
+
+    # Відправка адмінам
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
@@ -285,6 +298,7 @@ def save_comment(message):
             f"━━━━━━━━━━━━━━━━━━\n"
             f"💬 {message.text}"
         )
+        
 
 # ========== МЕНЮ ==========
 
