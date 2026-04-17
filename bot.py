@@ -15,7 +15,7 @@ TON_RATE = 72.3
 USDT_RATE = 41.5
 STARS_BUY_RATE = 0.76        # курс покупки: 100 Stars = 76 грн (0.76 грн за 1 звезду)
 STARS_SELL_RATE = 0.40
-STARS_MIN_SELL = 500
+STARS_MIN_SELL = 50
 # =============================
 
 # ===== РЕКВІЗИТИ (міняй тут) =====
