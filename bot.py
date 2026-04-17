@@ -18,7 +18,7 @@ def start(message):
 
 @bot.message_handler(func=lambda m: True)
 def handle(message):
-    if message.text == "💰 Купити TON":
+    if message.text == "💎 Купити TON":
         bot.send_message(message.chat.id, "Купівля TON...")
     elif message.text == "💵 Купити USDT":
         bot.send_message(message.chat.id, "Купівля USDT...")
@@ -31,4 +31,4 @@ def handle(message):
     elif message.text == "🧮 Калькулятор":
         bot.send_message(message.chat.id, "Калькулятор...")
 
-bot.infinity_polling(allowed_updates=telebot.types.Update.all_types())
+bot.infinity_polling()
