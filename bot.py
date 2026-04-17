@@ -1,7 +1,7 @@
 import telebot
 import os
 import random
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
 bot = telebot.TeleBot(TOKEN)
@@ -17,8 +17,8 @@ CARD_OWNER = "Євгеній К."
 BANK_NAME = "Monobank🐾"
 # ==================================
 
-user_orders = {}
 ADMINS = [6227572453, 6794644473]
+user_orders = {}
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
@@ -29,6 +29,16 @@ def main_menu():
 
 def generate_order_id():
     return random.randint(100000, 999999)
+
+def confirm_button(order_id, user_id):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("✅ Підтвердити заказ", callback_data=f"confirm_{order_id}_{user_id}"))
+    return markup
+
+def leave_comment_button():
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("💬 Залишити коментар", callback_data="leave_comment"))
+    return markup
 
 MENU_BUTTONS = ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]
 
@@ -72,7 +82,7 @@ def process_ton_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = order_id
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "wallet": wallet, "crypto": "TON"}
 
     bot.send_message(
         message.chat.id,
@@ -81,7 +91,6 @@ def process_ton_wallet(message, amount, total):
         f"Выберите удобный способ оплаты👇",
         reply_markup=main_menu()
     )
-
     bot.send_message(
         message.chat.id,
         f"💳 Банк {BANK_NAME}\n"
@@ -96,7 +105,6 @@ def process_ton_wallet(message, amount, total):
         reply_markup=main_menu()
     )
 
-    # Повідомлення адмінам
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     for admin_id in ADMINS:
         bot.send_message(
@@ -151,7 +159,7 @@ def process_usdt_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = order_id
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "wallet": wallet, "crypto": "USDT"}
 
     bot.send_message(
         message.chat.id,
@@ -160,7 +168,6 @@ def process_usdt_wallet(message, amount, total):
         f"Выберите удобный способ оплаты👇",
         reply_markup=main_menu()
     )
-
     bot.send_message(
         message.chat.id,
         f"💳 Банк {BANK_NAME}\n"
@@ -175,7 +182,6 @@ def process_usdt_wallet(message, amount, total):
         reply_markup=main_menu()
     )
 
-    # Повідомлення адмінам
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     for admin_id in ADMINS:
         bot.send_message(
@@ -197,7 +203,8 @@ def process_usdt_wallet(message, amount, total):
 
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(message):
-    order_id = user_orders.get(message.chat.id, "??????")
+    order_data = user_orders.get(message.chat.id)
+    order_id = order_data["order_id"] if order_data else "??????"
     photo = message.photo[-1].file_id
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
 
@@ -212,7 +219,6 @@ def handle_receipt(message):
         reply_markup=main_menu()
     )
 
-    # Відправляємо фото квитанції адмінам
     for admin_id in ADMINS:
         bot.send_photo(
             admin_id,
@@ -222,7 +228,62 @@ def handle_receipt(message):
                     f"👤 Пользователь: {username}\n"
                     f"🆔 ID: {message.chat.id}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"✅ Клиент отправил квитанцию об оплате"
+                    f"✅ Клиент отправил квитанцию об оплате",
+            reply_markup=confirm_button(order_id, message.chat.id)
+        )
+
+# ========== CALLBACK ==========
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_"))
+def confirm_order(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ У вас нет доступа!")
+        return
+
+    parts = call.data.split("_")
+    order_id = parts[1]
+    user_id = int(parts[2])
+
+    crypto = "💎"
+    order_data = user_orders.get(user_id)
+    if order_data:
+        crypto = "💎" if order_data["crypto"] == "TON" else "💵"
+
+    bot.send_message(
+        user_id,
+        f"✅ Готово!\n"
+        f"{crypto} Криптовалюта уже на кошельке\n"
+        f"💎 Спасибо, что выбрали нас! ❤️\n"
+        f"⭐️ Поставьте оценку:",
+        reply_markup=leave_comment_button()
+    )
+
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.answer_callback_query(call.id, f"✅ Заказ #{order_id} підтверджено!")
+    bot.send_message(call.message.chat.id, f"✅ Заказ #{order_id} підтверджено і покупецьповідомлений!")
+
+@bot.callback_query_handler(func=lambda call: call.data == "leave_comment")
+def leave_comment(call):
+    msg = bot.send_message(call.message.chat.id, "✍️ Напишіть ваш коментар:")
+    bot.register_next_step_handler(msg, save_comment)
+    bot.answer_callback_query(call.id)
+
+def save_comment(message):
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    order_data = user_orders.get(message.chat.id)
+    order_id = order_data["order_id"] if order_data else "??????"
+
+    bot.send_message(message.chat.id, "⭐ Дякуємо за ваш відгук!", reply_markup=main_menu())
+
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"💬 НОВЫЙ ОТЗЫВ\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Пользователь: {username}\n"
+            f"📞 Заказ: #{order_id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💬 {message.text}"
         )
 
 # ========== МЕНЮ ==========
