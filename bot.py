@@ -18,6 +18,7 @@ BANK_NAME = "Monobank🐾"
 # ==================================
 
 user_orders = {}
+ADMINS = [6227572453, 6794644473]
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
@@ -95,6 +96,24 @@ def process_ton_wallet(message, amount, total):
         reply_markup=main_menu()
     )
 
+    # Повідомлення адмінам
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"🆕 НОВЫЙ ЗАКАЗ #{order_id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Пользователь: {username}\n"
+            f"🆔 ID: {message.chat.id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💎 Криптовалюта: TON\n"
+            f"💰 Количество: {amount} TON\n"
+            f"💵 Сумма к оплате: {total} грн\n"
+            f"👛 Кошелёк: {wallet}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ Статус: Ожидает оплаты"
+        )
+
 # ========== USDT ==========
 
 @bot.message_handler(func=lambda m: m.text == "💵 Купити USDT")
@@ -156,12 +175,31 @@ def process_usdt_wallet(message, amount, total):
         reply_markup=main_menu()
     )
 
+    # Повідомлення адмінам
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"🆕 НОВЫЙ ЗАКАЗ #{order_id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Пользователь: {username}\n"
+            f"🆔 ID: {message.chat.id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💵 Криптовалюта: USDT\n"
+            f"💰 Количество: {amount} USDT\n"
+            f"💵 Сумма к оплате: {total} грн\n"
+            f"👛 Кошелёк: {wallet}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ Статус: Ожидает оплаты"
+        )
+
 # ========== КВИТАНЦІЯ ==========
 
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(message):
     order_id = user_orders.get(message.chat.id, "??????")
     photo = message.photo[-1].file_id
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
 
     bot.send_photo(
         message.chat.id,
@@ -173,6 +211,19 @@ def handle_receipt(message):
                 f"📸 Ваша квитанция получена",
         reply_markup=main_menu()
     )
+
+    # Відправляємо фото квитанції адмінам
+    for admin_id in ADMINS:
+        bot.send_photo(
+            admin_id,
+            photo,
+            caption=f"📸 КВИТАНЦИЯ по заказу #{order_id}\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 Пользователь: {username}\n"
+                    f"🆔 ID: {message.chat.id}\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"✅ Клиент отправил квитанцию об оплате"
+        )
 
 # ========== МЕНЮ ==========
 
