@@ -1,6 +1,7 @@
 import telebot
 import os
 import random
+import datetime
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
@@ -18,7 +19,7 @@ BANK_NAME = "Monobank🐾"
 # ==================================
 
 ADMINS = [6227572453, 6794644473]
-REVIEWS_CHANNEL_ID = -1003764314898  # ← свій ID каналу
+REVIEWS_CHANNEL_ID = -1003764314898
 user_orders = {}
 
 def main_menu():
@@ -83,7 +84,11 @@ def process_ton_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "wallet": wallet, "crypto": "TON"}
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    user_orders[message.chat.id] = {
+        "order_id": order_id, "amount": amount, "total": total,
+        "wallet": wallet, "crypto": "TON", "date": now
+    }
 
     bot.send_message(
         message.chat.id,
@@ -160,7 +165,11 @@ def process_usdt_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "wallet": wallet, "crypto": "USDT"}
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    user_orders[message.chat.id] = {
+        "order_id": order_id, "amount": amount, "total": total,
+        "wallet": wallet, "crypto": "USDT", "date": now
+    }
 
     bot.send_message(
         message.chat.id,
@@ -205,6 +214,12 @@ def process_usdt_wallet(message, amount, total):
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(message):
     order_data = user_orders.get(message.chat.id)
+
+    # Якщо людина в процесі відгуку — передаємо фото туди
+    if order_data and order_data.get("pending_comment"):
+        save_comment_photo(message)
+        return
+
     order_id = order_data["order_id"] if order_data else "??????"
     photo = message.photo[-1].file_id
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
@@ -245,10 +260,8 @@ def confirm_order(call):
     order_id = parts[1]
     user_id = int(parts[2])
 
-    crypto = "💎"
     order_data = user_orders.get(user_id)
-    if order_data:
-        crypto = "💎" if order_data["crypto"] == "TON" else "💵"
+    crypto = "💎" if not order_data or order_data["crypto"] == "TON" else "💵"
 
     bot.send_message(
         user_id,
@@ -261,7 +274,7 @@ def confirm_order(call):
 
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
     bot.answer_callback_query(call.id, f"✅ Заказ #{order_id} підтверджено!")
-    bot.send_message(call.message.chat.id, f"✅ Заказ #{order_id} підтверджено і покупецьповідомлений!")
+    bot.send_message(call.message.chat.id, f"✅ Заказ #{order_id} підтверджено і покупець повідомлений!")
 
 @bot.callback_query_handler(func=lambda call: call.data == "leave_comment")
 def leave_comment(call):
@@ -270,35 +283,46 @@ def leave_comment(call):
     bot.answer_callback_query(call.id)
 
 def save_comment(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    order_data = user_orders.get(message.chat.id, {})
+    order_data["pending_comment"] = message.text
+    user_orders[message.chat.id] = order_data
+
+    bot.send_message(message.chat.id, "📸 Тепер відправте фото для відгуку:")
+
+def save_comment_photo(message):
+    order_data = user_orders.get(message.chat.id, {})
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
-    order_data = user_orders.get(message.chat.id)
-    order_id = order_data["order_id"] if order_data else "??????"
+    order_id = order_data.get("order_id", "??????")
+    amount = order_data.get("amount", "?")
+    crypto = order_data.get("crypto", "?")
+    comment = order_data.get("pending_comment", "?")
+    date = order_data.get("date", datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+    photo = message.photo[-1].file_id
+
+    # Очищаємо pending_comment
+    order_data.pop("pending_comment", None)
+    user_orders[message.chat.id] = order_data
+
+    caption = (
+        f"📝 Новый отзыв\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Клиент: {username}\n"
+        f"💰 Куплено: {amount} {crypto}\n"
+        f"💬 Комментарий: {comment}\n"
+        f"📅 Дата: {date}"
+    )
 
     bot.send_message(message.chat.id, "⭐ Дякуємо за ваш відгук!", reply_markup=main_menu())
 
-    # Відправка в канал
-    bot.send_message(
-        REVIEWS_CHANNEL_ID,
-        f"⭐ Новый отзыв\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 Покупатель: {username}\n"
-        f"📞 Заказ: #{order_id}\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"💬 {message.text}"
-    )
+    # В канал
+    bot.send_photo(REVIEWS_CHANNEL_ID, photo, caption=caption)
 
-    # Відправка адмінам
+    # Адмінам
     for admin_id in ADMINS:
-        bot.send_message(
-            admin_id,
-            f"💬 НОВЫЙ ОТЗЫВ\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"👤 Пользователь: {username}\n"
-            f"📞 Заказ: #{order_id}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"💬 {message.text}"
-        )
-        
+        bot.send_photo(admin_id, photo, caption=f"💬 НОВЫЙ ОТЗЫВ\n{caption}")
 
 # ========== МЕНЮ ==========
 
