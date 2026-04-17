@@ -15,7 +15,7 @@ TON_RATE = 72.3
 USDT_RATE = 41.5
 STARS_BUY_RATE = 0.76        # курс покупки: 100 Stars = 76 грн (0.76 грн за 1 звезду)
 STARS_SELL_RATE = 0.40
-STARS_MIN_SELL = 50
+STARS_MIN_SELL = 500
 # =============================
 
 # ===== РЕКВІЗИТИ (міняй тут) =====
@@ -473,7 +473,16 @@ def profile(message):
     bot.send_message(message.chat.id, "👤 Ваш профиль...", reply_markup=main_menu())
 
 def reviews(message):
-    bot.send_message(message.chat.id, "✨ Отзывы...", reply_markup=main_menu())
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("📢 Перейти в канал отзывов", url="https://t.me/BlackrStars"))
+    bot.send_message(
+        message.chat.id,
+        "💬 *Отзывы наших клиентов*\n\n"
+        "💎 Смотрите реальные скриншоты полученной криптовалюты и Telegram Stars в нашем канале:\n\n"
+        "Спасибо, что выбираете нас! 💎",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
 
 def support(message):
     bot.send_message(message.chat.id, "🛠 Поддержка...", reply_markup=main_menu())
