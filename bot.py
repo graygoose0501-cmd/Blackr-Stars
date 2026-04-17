@@ -1,5 +1,6 @@
 import telebot
 import os
+import random
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
@@ -10,12 +11,23 @@ TON_RATE = 72.3
 USDT_RATE = 41.5
 # =============================
 
+# ===== РЕКВІЗИТИ (міняй тут) =====
+CARD_NUMBER = "4441111057153763"
+CARD_OWNER = "Євгеній К."
+BANK_NAME = "Monobank🐾"
+# ==================================
+
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     markup.row(KeyboardButton("💎 Купити TON"), KeyboardButton("💵 Купити USDT"))
     markup.row(KeyboardButton("👤 Профіль"), KeyboardButton("⭐ Відгуки"))
     markup.row(KeyboardButton("🛠 Служба підтримки"), KeyboardButton("🧮 Калькулятор"))
     return markup
+
+def generate_order_id():
+    return random.randint(100000, 999999)
+
+MENU_BUTTONS = ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -33,15 +45,15 @@ def buy_ton(message):
     bot.register_next_step_handler(msg, process_ton_amount)
 
 def process_ton_amount(message):
-    if message.text in ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]:
+    if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = amount * TON_RATE
+        total = round(amount * TON_RATE, 2)
         msg = bot.send_message(
             message.chat.id,
-            f"✅ Количество: {amount} TON | Сумма: {total:.2f} грн\n\n"
+            f"✅ Количество: {amount} TON | Сумма: {total} грн\n\n"
             f"Введите адрес вашего кошелька сети TON, на который нужно отправить TON.\n"
             f"Если TON нужны на аккаунт, напишите, что их нужно зачислить на юзернейм.",
             reply_markup=main_menu()
@@ -52,13 +64,31 @@ def process_ton_amount(message):
         bot.register_next_step_handler(msg, process_ton_amount)
 
 def process_ton_wallet(message, amount, total):
-    if message.text in ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]:
+    if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     wallet = message.text
+    order_id = generate_order_id()
+
     bot.send_message(
         message.chat.id,
-        f"📋 Ваша заявка:\n💎 TON: {amount}\n💰 Сума: {total:.2f} грн\n👛 Гаманець: {wallet}\n\nЗаявка прийнята! Очікуйте.",
+        f"✅ Хорошо!\nНа этот кошелек будут отправлены TON:\n"
+        f"💸 К оплате: {total} грн\n\n"
+        f"Выберите удобный способ оплаты👇",
+        reply_markup=main_menu()
+    )
+
+    bot.send_message(
+        message.chat.id,
+        f"💳 Банк {BANK_NAME}\n"
+        f"Карта: {CARD_NUMBER}\n"
+        f"Получатель: {CARD_OWNER}\n\n"
+        f"💬 Оплата не проходит?\nНапишите нам в поддержку!\n\n"
+        f"💰 К оплате: {total} грн\n"
+        f"👛 TON на кошелёк: {wallet}\n"
+        f"💎 Сумма криптовалюты: {amount} TON\n\n"
+        f"📸 После оплаты отправьте сюда квитанцию:\n"
+        f"📞 Номер заказа: #{order_id}",
         reply_markup=main_menu()
     )
 
@@ -74,15 +104,15 @@ def buy_usdt(message):
     bot.register_next_step_handler(msg, process_usdt_amount)
 
 def process_usdt_amount(message):
-    if message.text in ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]:
+    if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = amount * USDT_RATE
+        total = round(amount * USDT_RATE, 2)
         msg = bot.send_message(
             message.chat.id,
-            f"✅ Количество: {amount} USDT | Сумма: {total:.2f} грн\n\n"
+            f"✅ Количество: {amount} USDT | Сумма: {total} грн\n\n"
             f"Введите адрес вашего кошелька в сети TON, на который нужно отправить USDT\n"
             f"Комиссия за перевод оплачивается вами:\n• TON — 0,15 $\n"
             f"По другим сетям уточняйте информацию в службе поддержки.",
@@ -94,13 +124,31 @@ def process_usdt_amount(message):
         bot.register_next_step_handler(msg, process_usdt_amount)
 
 def process_usdt_wallet(message, amount, total):
-    if message.text in ["💎 Купити TON", "💵 Купити USDT", "👤 Профіль", "⭐ Відгуки", "🛠 Служба підтримки", "🧮 Калькулятор"]:
+    if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     wallet = message.text
+    order_id = generate_order_id()
+
     bot.send_message(
         message.chat.id,
-        f"📋 Ваша заявка:\n💵 USDT: {amount}\n💰 Сума: {total:.2f} грн\n👛 Гаманець: {wallet}\n\nЗаявка прийнята! Очікуйте.",
+        f"✅ Хорошо!\nНа этот кошелек будут отправлены USDT:\n"
+        f"💸 К оплате: {total} грн\n\n"
+        f"Выберите удобный способ оплаты👇",
+        reply_markup=main_menu()
+    )
+
+    bot.send_message(
+        message.chat.id,
+        f"💳 Банк {BANK_NAME}\n"
+        f"Карта: {CARD_NUMBER}\n"
+        f"Получатель: {CARD_OWNER}\n\n"
+        f"💬 Оплата не проходит?\nНапишите нам в поддержку!\n\n"
+        f"💰 К оплате: {total} грн\n"
+        f"👛 USDT на кошелёк: {wallet}\n"
+        f"💵 Сумма криптовалюты: {amount} USDT\n\n"
+        f"📸 После оплаты отправьте сюда квитанцию:\n"
+        f"📞 Номер заказа: #{order_id}",
         reply_markup=main_menu()
     )
 
