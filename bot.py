@@ -7,7 +7,7 @@ bot = telebot.TeleBot(TOKEN)
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(KeyboardButton("💰 Купити TON"), KeyboardButton("💵 Купити USDT"))
+    markup.row(KeyboardButton("💎 Купити TON"), KeyboardButton("💵 Купити USDT"))
     markup.row(KeyboardButton("👤 Профіль"), KeyboardButton("⭐ Відгуки"))
     markup.row(KeyboardButton("🛠 Служба підтримки"), KeyboardButton("🧮 Калькулятор"))
     return markup
