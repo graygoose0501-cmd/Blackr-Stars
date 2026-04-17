@@ -17,6 +17,8 @@ CARD_OWNER = "Євгеній К."
 BANK_NAME = "Monobank🐾"
 # ==================================
 
+user_orders = {}
+
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     markup.row(KeyboardButton("💎 Купити TON"), KeyboardButton("💵 Купити USDT"))
@@ -69,6 +71,7 @@ def process_ton_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
+    user_orders[message.chat.id] = order_id
 
     bot.send_message(
         message.chat.id,
@@ -129,6 +132,7 @@ def process_usdt_wallet(message, amount, total):
         return
     wallet = message.text
     order_id = generate_order_id()
+    user_orders[message.chat.id] = order_id
 
     bot.send_message(
         message.chat.id,
@@ -149,6 +153,24 @@ def process_usdt_wallet(message, amount, total):
         f"💵 Сумма криптовалюты: {amount} USDT\n\n"
         f"📸 После оплаты отправьте сюда квитанцию:\n"
         f"📞 Номер заказа: #{order_id}",
+        reply_markup=main_menu()
+    )
+
+# ========== КВИТАНЦІЯ ==========
+
+@bot.message_handler(content_types=['photo'])
+def handle_receipt(message):
+    order_id = user_orders.get(message.chat.id, "??????")
+    photo = message.photo[-1].file_id
+
+    bot.send_photo(
+        message.chat.id,
+        photo,
+        caption=f"✅ Заказ #{order_id} получен.\n"
+                f"⏳ Сейчас сотрудники проверят вашу квитанцию.\n"
+                f"⏰ Обычно это занимает 15–70 минут.\n"
+                f"⚠️ Рабочее время: 08:00–00:00 (Киев).\n"
+                f"📸 Ваша квитанция получена",
         reply_markup=main_menu()
     )
 
