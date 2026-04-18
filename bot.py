@@ -811,8 +811,245 @@ def reviews(message):
 def support(message):
     bot.send_message(message.chat.id, "🛠 Поддержка...", reply_markup=main_menu())
 
+def calculator_keyboard():
+    """Клавиатура для калькулятора"""
+    markup = InlineKeyboardMarkup(row_width=3)
+    
+    markup.add(
+        InlineKeyboardButton("💎 TON → 💰 Грн", callback_data="calc_ton_to_uah"),
+        InlineKeyboardButton("💰 Грн → 💎 TON", callback_data="calc_uah_to_ton"),
+        InlineKeyboardButton("💵 USDT → 💰 Грн", callback_data="calc_usdt_to_uah")
+    )
+    markup.add(
+        InlineKeyboardButton("💰 Грн → 💵 USDT", callback_data="calc_uah_to_usdt"),
+        InlineKeyboardButton("⭐️ Stars → 💰 Грн", callback_data="calc_stars_to_uah"),
+        InlineKeyboardButton("💰 Грн → ⭐️ Stars", callback_data="calc_uah_to_stars")
+    )
+    
+    return markup
+
 @bot.message_handler(func=lambda m: m.text == "Калькулятор")
 def calculator(message):
-    bot.send_message(message.chat.id, "🧮 Калькулятор...", reply_markup=main_menu())
+    bot.send_message(
+        message.chat.id,
+        "🧮 *Калькулятор*\n\n"
+        "Выбери что хочешь посчитать 👇",
+        reply_markup=calculator_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ========== ОБРАБОТЧИКИ КАЛЬКУЛЯТОРА ==========
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("calc_"))
+def calculator_handler(call):
+    bot.answer_callback_query(call.id)
+    
+    action = call.data
+    
+    if action == "calc_ton_to_uah":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"💎 *TON → Грн*\n"
+            f"Курс: *{TON_BUY_RATE} грн*\n\n"
+            f"Введите количество TON:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_ton_to_uah)
+        
+    elif action == "calc_uah_to_ton":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"💰 *Грн → TON*\n"
+            f"Курс: *{TON_BUY_RATE} грн*\n\n"
+            f"Введите сумму в гривнах:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_ton)
+        
+    elif action == "calc_usdt_to_uah":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"💵 *USDT → Грн*\n"
+            f"Курс: *{USDT_BUY_RATE} грн*\n\n"
+            f"Введите количество USDT:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_usdt_to_uah)
+        
+    elif action == "calc_uah_to_usdt":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"💰 *Грн → USDT*\n"
+            f"Курс: *{USDT_BUY_RATE} грн*\n\n"
+            f"Введите сумму в гривнах:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_usdt)
+        
+    elif action == "calc_stars_to_uah":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"⭐️ *Stars → Грн*\n"
+            f"Курс покупки: *{STARS_BUY_RATE} грн*\n\n"
+            f"Введите количество Stars:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_stars_to_uah)
+        
+    elif action == "calc_uah_to_stars":
+        msg = bot.send_message(
+            call.message.chat.id,
+            f"💰 *Грн → Stars*\n"
+            f"Курс покупки: *{STARS_BUY_RATE} грн*\n\n"
+            f"Введите сумму в гривнах:",
+            parse_mode="Markdown",
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_stars)
+
+# ========== ФУНКЦИИ РАСЧЕТА ==========
+
+def process_calc_ton_to_uah(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount * TON_BUY_RATE, 2)
+        bot.send_message(
+            message.chat.id,
+            f"💎 *Результат:*\n\n"
+            f`{amount} TON = *{total} грн*\n`
+            f"Курс: {TON_BUY_RATE} грн/TON",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите число! Например: 1.5", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_ton_to_uah)
+
+def process_calc_uah_to_ton(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount / TON_BUY_RATE, 4)
+        bot.send_message(
+            message.chat.id,
+            f"💰 *Результат:*\n\n"
+            f`{amount} грн = *{total} TON*\n`
+            f"Курс: {TON_BUY_RATE} грн/TON",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите число! Например: 1000", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_ton)
+
+def process_calc_usdt_to_uah(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount * USDT_BUY_RATE, 2)
+        bot.send_message(
+            message.chat.id,
+            f"💵 *Результат:*\n\n"
+            f`{amount} USDT = *{total} грн*\n`
+            f"Курс: {USDT_BUY_RATE} грн/USDT",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите число! Например: 10.5", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_usdt_to_uah)
+
+def process_calc_uah_to_usdt(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount / USDT_BUY_RATE, 4)
+        bot.send_message(
+            message.chat.id,
+            f"💰 *Результат:*\n\n"
+            f`{amount} грн = *{total} USDT*\n`
+            f"Курс: {USDT_BUY_RATE} грн/USDT",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите число! Например: 1000", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_usdt)
+
+def process_calc_stars_to_uah(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = int(float(message.text.replace(",", ".")))
+        total = round(amount * STARS_BUY_RATE, 2)
+        bot.send_message(
+            message.chat.id,
+            f"⭐️ *Результат:*\n\n"
+            f`{amount} Stars = *{total} грн*\n`
+            f"Курс: {STARS_BUY_RATE} грн/Star",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите целое число! Например: 100", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_stars_to_uah)
+
+def process_calc_uah_to_stars(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = int(amount / STARS_BUY_RATE)
+        bot.send_message(
+            message.chat.id,
+            f"💰 *Результат:*\n\n"
+            f`{amount} грн = *{total} Stars*\n`
+            f"Курс: {STARS_BUY_RATE} грн/Star",
+            parse_mode="Markdown",
+            reply_markup=calculator_keyboard()
+        )
+    except (ValueError, AttributeError):
+        msg = bot.send_message(
+            message.chat.id, 
+            "❌ Введите число! Например: 500", 
+            reply_markup=main_menu()
+        )
+        bot.register_next_step_handler(msg, process_calc_uah_to_stars)
 
 bot.infinity_polling()
