@@ -29,6 +29,9 @@ ADMINS = [6227572453, 6794644473]
 REVIEWS_CHANNEL_ID = -1003764314898
 user_orders = {}
 
+# Счетчик отзывов
+review_counter = 1
+
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     markup.row(KeyboardButton("💎 TON"), KeyboardButton("💵 USDT"))
@@ -66,16 +69,16 @@ def leave_comment_button():
     return markup
 
 def ton_usdt_inline_menu():
-    markup = InlineKeyboardMarkup()
-    markup.row(
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
         InlineKeyboardButton("💎 Купить TON", callback_data="ton_buy"),
         InlineKeyboardButton("💸 Продать TON", callback_data="ton_sell")
     )
     return markup
 
 def usdt_inline_menu():
-    markup = InlineKeyboardMarkup()
-    markup.row(
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
         InlineKeyboardButton("💵 Купить USDT", callback_data="usdt_buy"),
         InlineKeyboardButton("💸 Продать USDT", callback_data="usdt_sell")
     )
@@ -714,6 +717,7 @@ def save_comment(message):
     bot.send_message(message.chat.id, "📸 Теперь отправьте фото для отзыва:")
 
 def save_comment_photo(message):
+    global review_counter
     order_data = user_orders.get(message.chat.id, {})
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     order_id = order_data.get("order_id", "??????")
@@ -724,17 +728,23 @@ def save_comment_photo(message):
     photo = message.photo[-1].file_id
     order_data.pop("pending_comment", None)
     user_orders[message.chat.id] = order_data
+    
+    # Используем счетчик отзывов
+    review_number = review_counter
+    review_counter += 1
+    
     caption = (
-        f"📝 Новый отзыв\n━━━━━━━━━━━━━━━━━━\n"
+        f"📝 *Отзыв #{review_number}*\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 Клиент: {username}\n"
         f"💰 Куплено: {amount} {crypto}\n"
         f"💬 Комментарий: {comment}\n"
         f"📅 Дата: {date}"
     )
     bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
-    bot.send_photo(REVIEWS_CHANNEL_ID, photo, caption=caption)
+    bot.send_photo(REVIEWS_CHANNEL_ID, photo, caption=caption, parse_mode="Markdown")
     for admin_id in ADMINS:
-        bot.send_photo(admin_id, photo, caption=f"💬 НОВЫЙ ОТЗЫВ\n{caption}")
+        bot.send_photo(admin_id, photo, caption=f"💬 НОВЫЙ ОТЗЫВ\n{caption}", parse_mode="Markdown")
 
 # ========== МЕНЮ ==========
 
