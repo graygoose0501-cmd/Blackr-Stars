@@ -34,19 +34,36 @@ review_counter = 1
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 TON"), KeyboardButton("💵 USDT"))
-    markup.row(KeyboardButton("⭐️ Купить Stars"), KeyboardButton("🌟 Продать Stars"))
-    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("✨ Отзывы"))
-    markup.row(KeyboardButton("🛠 Поддержка"), KeyboardButton("🧮 Калькулятор"))
+    
+    # Первый ряд - синий (primary)
+    markup.row(
+        KeyboardButton("💎 TON", style="primary"), 
+        KeyboardButton("💵 USDT", style="primary")
+    )
+    # Второй ряд - тоже синий (primary)
+    markup.row(
+        KeyboardButton("⭐️ Купить Stars", style="primary"), 
+        KeyboardButton("🌟 Продать Stars", style="primary")
+    )
+    # Третий ряд - зеленый (success)
+    markup.row(
+        KeyboardButton("👤 Профиль", style="success"), 
+        KeyboardButton("✨ Отзывы", style="success")
+    )
+    # Четвертый ряд - тоже зеленый (success)
+    markup.row(
+        KeyboardButton("🛠 Поддержка", style="success"), 
+        KeyboardButton("🧮 Калькулятор", style="success")
+    )
     return markup
 
+# Не забудьте обновить MENU_BUTTONS, если это необходимо
 MENU_BUTTONS = [
     "💎 TON", "💵 USDT",
     "⭐️ Купить Stars", "🌟 Продать Stars",
     "👤 Профиль", "✨ Отзывы",
     "🛠 Поддержка", "🧮 Калькулятор"
 ]
-
 def generate_order_id():
     return random.randint(100000, 999999)
 
