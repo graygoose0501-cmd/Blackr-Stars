@@ -16,7 +16,7 @@ USDT_SELL_RATE = 40.0     # Курс продажи USDT
 
 STARS_BUY_RATE = 0.76     # 100 Stars = 76 грн
 STARS_SELL_RATE = 0.40
-STARS_MIN_SELL = 500
+STARS_MIN_SELL = 50
 # =============================
 
 # ===== РЕКВІЗИТИ (міняй тут) =====
@@ -807,9 +807,377 @@ def reviews(message):
         parse_mode="Markdown"
     )
 
+# ========== ПОДДЕРЖКА ==========
+
+def support_inline_keyboard():
+    """Клавиатура для раздела поддержки"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(InlineKeyboardButton("✉️ Написать", callback_data="support_write"))
+    return markup
+
+def support_cancel_keyboard():
+    """Клавиатура с кнопкой отмены"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(InlineKeyboardButton("❌ Отменить", callback_data="support_cancel"))
+    return markup
+
+def admin_reply_keyboard(user_id, ticket_id):
+    """Клавиатура для админов для ответа пользователю"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("💬 Ответить", callback_data=f"admin_reply_{user_id}_{ticket_id}"),
+        InlineKeyboardButton("✅ Закрыть тикет", callback_data=f"admin_close_{user_id}_{ticket_id}")
+    )
+    return markup
+
+# Словарь для хранения активных тикетов
+support_tickets = {}
+ticket_counter = 1
+
 @bot.message_handler(func=lambda m: m.text == "Поддержка")
 def support(message):
-    bot.send_message(message.chat.id, "🛠 Поддержка...", reply_markup=main_menu())
+    bot.send_message(
+        message.chat.id,
+        "😊 *Есть вопросы?* Нажимай «Написать» — мы с радостью поможем! 😺\n\n"
+        "🤔 *Частые вопросы:*\n\n"
+        "1️⃣ *Сколько ждать выполнение заказа?*\n"
+        "— Обычно от 5 до 70 минут.",
+        reply_markup=support_inline_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "support_write")
+def support_write(call):
+    global ticket_counter
+    
+    bot.answer_callback_query(call.id)
+    
+    # Создаем новый тикет
+    ticket_id = ticket_counter
+    ticket_counter += 1
+    
+    support_tickets[call.message.chat.id] = {
+        "ticket_id": ticket_id,
+        "status": "waiting_message",
+        "user_id": call.message.chat.id,
+        "username": f"@{call.from_user.username}" if call.from_user.username else f"ID: {call.message.chat.id}"
+    }
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"📩 *Тикет #{ticket_id}*\n\n"
+        "Введите ваш запрос:\n"
+        "Вы можете отправить текст, фото или документ",
+        reply_markup=support_cancel_keyboard(),
+        parse_mode="Markdown"
+    )
+    
+    support_tickets[call.message.chat.id]["message_id"] = msg.message_id
+
+@bot.callback_query_handler(func=lambda call: call.data == "support_cancel")
+def support_cancel(call):
+    bot.answer_callback_query(call.id)
+    
+    if call.message.chat.id in support_tickets:
+        del support_tickets[call.message.chat.id]
+    
+    bot.edit_message_text(
+        "❌ *Запрос отменен*",
+        call.message.chat.id,
+        call.message.message_id,
+        parse_mode="Markdown"
+    )
+    
+    bot.send_message(
+        call.message.chat.id,
+        "😊 *Есть вопросы?* Нажимай «Написать» — мы с радостью поможем! 😺\n\n"
+        "🤔 *Частые вопросы:*\n\n"
+        "1️⃣ *Сколько ждать выполнение заказа?*\n"
+        "— Обычно от 5 до 70 минут.",
+        reply_markup=support_inline_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# Обработчик сообщений для поддержки (текст, фото, документы)
+@bot.message_handler(func=lambda m: m.chat.id in support_tickets and 
+                     support_tickets[m.chat.id].get("status") == "waiting_message",
+                     content_types=['text', 'photo', 'document'])
+def handle_support_message(message):
+    ticket_data = support_tickets[message.chat.id]
+    ticket_id = ticket_data["ticket_id"]
+    username = ticket_data["username"]
+    
+    # Удаляем кнопку "Отменить" из предыдущего сообщения
+    try:
+        bot.edit_message_reply_markup(
+            message.chat.id,
+            ticket_data["message_id"],
+            reply_markup=None
+        )
+    except:
+        pass
+    
+    # Отправляем подтверждение пользователю
+    bot.send_message(
+        message.chat.id,
+        f"✅ *Тикет #{ticket_id} отправлен!*\n"
+        "⏳ Ожидайте ответа поддержки.",
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+    
+    # Формируем сообщение для админов
+    admin_message = (
+        f"📩 *НОВЫЙ ТИКЕТ #{ticket_id}*\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Пользователь: {username}\n"
+        f"🆔 ID: `{message.chat.id}`\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+    )
+    
+    # Отправляем админам в зависимости от типа сообщения
+    for admin_id in ADMINS:
+        try:
+            if message.content_type == 'text':
+                admin_message += f"💬 *Сообщение:*\n{message.text}"
+                bot.send_message(
+                    admin_id,
+                    admin_message,
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+            
+            elif message.content_type == 'photo':
+                admin_message += "📸 *Отправлено фото*"
+                caption = message.caption if message.caption else ""
+                
+                bot.send_photo(
+                    admin_id,
+                    message.photo[-1].file_id,
+                    caption=admin_message + (f"\n\n📝 Подпись: {caption}" if caption else ""),
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+            
+            elif message.content_type == 'document':
+                admin_message += f"📎 *Отправлен документ:* `{message.document.file_name}`"
+                
+                bot.send_document(
+                    admin_id,
+                    message.document.file_id,
+                    caption=admin_message,
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            print(f"Ошибка отправки админу {admin_id}: {e}")
+    
+    # Обновляем статус тикета
+    support_tickets[message.chat.id]["status"] = "waiting_reply"
+    support_tickets[message.chat.id]["last_message"] = message
+
+# ========== ОТВЕТ АДМИНА ==========
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_reply_"))
+def admin_reply_start(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    
+    parts = call.data.split("_")
+    user_id = int(parts[2])
+    ticket_id = int(parts[3])
+    
+    # Сохраняем данные для ответа
+    support_tickets[f"admin_{call.from_user.id}"] = {
+        "replying_to": user_id,
+        "ticket_id": ticket_id
+    }
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"💬 *Ответ на тикет #{ticket_id}*\n\n"
+        "Введите ваш ответ:",
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, process_admin_reply, user_id, ticket_id)
+
+def process_admin_reply(message, user_id, ticket_id):
+    if message.text in MENU_BUTTONS:
+        return
+    
+    try:
+        # Отправляем ответ пользователю
+        bot.send_message(
+            user_id,
+            f"💬 *Поддержка | Тикет #{ticket_id}*\n\n"
+            f"{message.text}\n\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"📩 Чтобы ответить, просто напишите сообщение в этот чат.",
+            parse_mode="Markdown",
+            reply_markup=support_reply_keyboard(ticket_id)
+        )
+        
+        # Активируем режим ожидания ответа от пользователя
+        support_tickets[user_id] = {
+            "ticket_id": ticket_id,
+            "status": "waiting_user_reply",
+            "user_id": user_id
+        }
+        
+        # Уведомляем админа
+        bot.send_message(
+            message.chat.id,
+            f"✅ *Ответ отправлен пользователю!*\n"
+            f"Тикет #{ticket_id}",
+            parse_mode="Markdown"
+        )
+        
+        # Уведомляем других админов
+        username = f"@{message.from_user.username}" if message.from_user.username else "Админ"
+        for admin_id in ADMINS:
+            if admin_id != message.chat.id:
+                bot.send_message(
+                    admin_id,
+                    f"💬 *Админ {username} ответил на тикет #{ticket_id}*\n\n"
+                    f"Ответ: {message.text}",
+                    parse_mode="Markdown"
+                )
+    
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"❌ *Ошибка отправки ответа!*\n"
+            f"Возможно, пользователь заблокировал бота.",
+            parse_mode="Markdown"
+        )
+
+def support_reply_keyboard(ticket_id):
+    """Клавиатура для пользователя при ответе"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(InlineKeyboardButton("❌ Закрыть тикет", callback_data=f"user_close_{ticket_id}"))
+    return markup
+
+# Обработчик ответа пользователя в тикете
+@bot.message_handler(func=lambda m: m.chat.id in support_tickets and 
+                     support_tickets[m.chat.id].get("status") == "waiting_user_reply",
+                     content_types=['text', 'photo', 'document'])
+def handle_user_reply(message):
+    ticket_data = support_tickets[message.chat.id]
+    ticket_id = ticket_data["ticket_id"]
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    
+    # Меняем статус обратно
+    support_tickets[message.chat.id]["status"] = "waiting_reply"
+    
+    # Уведомление пользователю
+    bot.send_message(
+        message.chat.id,
+        f"✅ *Ответ отправлен!*\n"
+        f"Тикет #{ticket_id}",
+        parse_mode="Markdown"
+    )
+    
+    # Формируем сообщение для админов
+    admin_message = (
+        f"📩 *ОТВЕТ ПОЛЬЗОВАТЕЛЯ | Тикет #{ticket_id}*\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 Пользователь: {username}\n"
+        f"🆔 ID: `{message.chat.id}`\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+    )
+    
+    # Отправляем админам
+    for admin_id in ADMINS:
+        try:
+            if message.content_type == 'text':
+                admin_message += f"💬 *Сообщение:*\n{message.text}"
+                bot.send_message(
+                    admin_id,
+                    admin_message,
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+            
+            elif message.content_type == 'photo':
+                admin_message += "📸 *Отправлено фото*"
+                caption = message.caption if message.caption else ""
+                
+                bot.send_photo(
+                    admin_id,
+                    message.photo[-1].file_id,
+                    caption=admin_message + (f"\n\n📝 Подпись: {caption}" if caption else ""),
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+            
+            elif message.content_type == 'document':
+                admin_message += f"📎 *Отправлен документ:* `{message.document.file_name}`"
+                
+                bot.send_document(
+                    admin_id,
+                    message.document.file_id,
+                    caption=admin_message,
+                    reply_markup=admin_reply_keyboard(message.chat.id, ticket_id),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            print(f"Ошибка отправки админу {admin_id}: {e}")
+
+# Закрытие тикета админом
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_close_"))
+def admin_close_ticket(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    parts = call.data.split("_")
+    user_id = int(parts[2])
+    ticket_id = int(parts[3])
+    
+    # Удаляем тикет пользователя
+    if user_id in support_tickets:
+        del support_tickets[user_id]
+    
+    # Уведомляем пользователя
+    try:
+        bot.send_message(
+            user_id,
+            f"🔒 *Тикет #{ticket_id} закрыт*\n\n"
+            "Спасибо за обращение! Если появятся новые вопросы — обращайтесь.",
+            parse_mode="Markdown"
+        )
+    except:
+        pass
+    
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.answer_callback_query(call.id, f"✅ Тикет #{ticket_id} закрыт!")
+    
+    bot.send_message(
+        call.message.chat.id,
+        f"✅ *Тикет #{ticket_id} закрыт!*",
+        parse_mode="Markdown"
+    )
+
+# Закрытие тикета пользователем
+@bot.callback_query_handler(func=lambda call: call.data.startswith("user_close_"))
+def user_close_ticket(call):
+    ticket_id = int(call.data.split("_")[2])
+    
+    if call.message.chat.id in support_tickets:
+        del support_tickets[call.message.chat.id]
+    
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.answer_callback_query(call.id, "✅ Тикет закрыт!")
+    
+    bot.send_message(
+        call.message.chat.id,
+        f"🔒 *Тикет #{ticket_id} закрыт*\n\n"
+        "Спасибо за обращение!",
+        parse_mode="Markdown"
+    )
 
 def calculator_keyboard():
     """Клавиатура для калькулятора - кнопки в столбик"""
