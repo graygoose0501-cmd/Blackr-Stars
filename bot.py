@@ -924,7 +924,7 @@ def process_calc_ton_to_uah(message):
         bot.send_message(
             message.chat.id,
             f"💎 *Результат:*\n\n"
-            f`{amount} TON = *{total} грн*\n`
+            f"{amount} TON = *{total} грн*\n"
             f"Курс: {TON_BUY_RATE} грн/TON",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -947,7 +947,7 @@ def process_calc_uah_to_ton(message):
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
-            f`{amount} грн = *{total} TON*\n`
+            f"{amount} грн = *{total} TON*\n"
             f"Курс: {TON_BUY_RATE} грн/TON",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -970,7 +970,7 @@ def process_calc_usdt_to_uah(message):
         bot.send_message(
             message.chat.id,
             f"💵 *Результат:*\n\n"
-            f`{amount} USDT = *{total} грн*\n`
+            f"{amount} USDT = *{total} грн*\n"
             f"Курс: {USDT_BUY_RATE} грн/USDT",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -993,7 +993,7 @@ def process_calc_uah_to_usdt(message):
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
-            f`{amount} грн = *{total} USDT*\n`
+            f"{amount} грн = *{total} USDT*\n"
             f"Курс: {USDT_BUY_RATE} грн/USDT",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -1016,7 +1016,7 @@ def process_calc_stars_to_uah(message):
         bot.send_message(
             message.chat.id,
             f"⭐️ *Результат:*\n\n"
-            f`{amount} Stars = *{total} грн*\n`
+            f"{amount} Stars = *{total} грн*\n"
             f"Курс: {STARS_BUY_RATE} грн/Star",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -1039,7 +1039,7 @@ def process_calc_uah_to_stars(message):
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
-            f`{amount} грн = *{total} Stars*\n`
+            f"{amount} грн = *{total} Stars*\n"
             f"Курс: {STARS_BUY_RATE} грн/Star",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
@@ -1051,5 +1051,4 @@ def process_calc_uah_to_stars(message):
             reply_markup=main_menu()
         )
         bot.register_next_step_handler(msg, process_calc_uah_to_stars)
-
 bot.infinity_polling()
