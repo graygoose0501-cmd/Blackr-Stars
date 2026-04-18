@@ -2,10 +2,25 @@ import telebot
 import os
 import random
 import datetime
+import pytz
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
 bot = telebot.TeleBot(TOKEN)
+
+# ===== НАСТРОЙКА ВРЕМЕНИ =====
+KYIV_TZ = pytz.timezone('Europe/Kiev')
+
+def get_kyiv_time():
+    """Возвращает текущее время в Киеве"""
+    return datetime.datetime.now(KYIV_TZ)
+
+def format_kyiv_time(dt=None):
+    """Форматирует время в строку дд.мм.гггг чч:мм"""
+    if dt is None:
+        dt = get_kyiv_time()
+    return dt.strftime("%d.%m.%Y %H:%M")
+# ==============================
 
 # ===== КУРСИ (міняй тут) =====
 TON_BUY_RATE = 72.3
@@ -29,8 +44,9 @@ ADMINS = [6227572453, 6794644473]
 REVIEWS_CHANNEL_ID = -1003764314898
 user_orders = {}
 
-# Счетчик отзывов
+# Счетчики
 review_counter = 1
+order_counter = 1  # Счетчик заказов
 
 # ========== ИСТОРИЯ ЗАКАЗОВ ДЛЯ ПРОФИЛЯ ==========
 user_history = {}
@@ -41,8 +57,8 @@ def save_order_to_history(user_id, order_data):
         user_history[user_id] = []
     
     history_entry = {
-        "date": order_data.get("date", datetime.datetime.now().strftime("%d.%m.%Y %H:%M")),
-        "order_id": order_data.get("order_id", "??????"),
+        "date": order_data.get("date", format_kyiv_time()),
+        "order_id": order_data.get("order_number", order_data.get("order_id", "??????")),
         "crypto": order_data.get("crypto", "?"),
         "amount": order_data.get("amount", 0),
         "total": order_data.get("total", 0),
@@ -110,20 +126,24 @@ MENU_BUTTONS = [
     "Поддержка", "Калькулятор"
 ]
 
-def generate_order_id():
-    return random.randint(100000, 999999)
+def generate_order_number():
+    """Генерирует порядковый номер заказа"""
+    global order_counter
+    number = order_counter
+    order_counter += 1
+    return number
 
-def confirm_button(order_id, user_id, action_type="buy"):
+def confirm_button(order_number, user_id, action_type="buy"):
     markup = InlineKeyboardMarkup()
     if action_type == "buy":
-        markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_id}_{user_id}"))
+        markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_number}_{user_id}"))
     else:
-        markup.add(InlineKeyboardButton("✅ Подтвердить выплату", callback_data=f"confirm_sell_{order_id}_{user_id}"))
+        markup.add(InlineKeyboardButton("✅ Подтвердить выплату", callback_data=f"confirm_sell_{order_number}_{user_id}"))
     return markup
 
-def confirm_sell_stars_button(order_id, user_id):
+def confirm_sell_stars_button(order_number, user_id):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Подтвердить продажу Stars", callback_data=f"confirm_sell_stars_{order_id}_{user_id}"))
+    markup.add(InlineKeyboardButton("✅ Подтвердить продажу Stars", callback_data=f"confirm_sell_stars_{order_number}_{user_id}"))
     return markup
 
 def leave_comment_button():
@@ -246,10 +266,10 @@ def process_ton_wallet(message, amount, total):
         handle_menu(message)
         return
     wallet = message.text
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    order_number = generate_order_number()
+    now = format_kyiv_time()
     user_orders[message.chat.id] = {
-        "order_id": order_id, "amount": amount, "total": total,
+        "order_number": order_number, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "TON", "date": now, "type": "buy"
     }
     save_order_to_history(message.chat.id, user_orders[message.chat.id])
@@ -265,14 +285,14 @@ def process_ton_wallet(message, amount, total):
         f"👛 Кошелёк: `{wallet}`\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📸 После оплаты отправьте квитанцию\n"
-        f"📞 Номер заказа: *#{order_id}*",
+        f"📞 Номер заказа: *#{order_number}*",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id} (ПОКУПКА TON)*\n"
+            f"🆕 *НОВЫЙ ЗАКАЗ #{order_number} (ПОКУПКА TON)*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
@@ -280,6 +300,7 @@ def process_ton_wallet(message, amount, total):
             f"💎 Количество: *{amount} TON*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает оплаты",
             parse_mode="Markdown"
@@ -320,9 +341,9 @@ def process_sell_ton_card(message, amount, total):
         handle_menu(message)
         return
     card = message.text
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "TON", "type": "sell", "date": now}
+    order_number = generate_order_number()
+    now = format_kyiv_time()
+    user_orders[message.chat.id] = {"order_number": order_number, "amount": amount, "total": total, "crypto": "TON", "type": "sell", "date": now}
     save_order_to_history(message.chat.id, user_orders[message.chat.id])
     
     bot.send_message(
@@ -330,7 +351,7 @@ def process_sell_ton_card(message, amount, total):
         f"✅ *Заявка на продажу TON принята!*\n\n"
         f"💰 Вы получите: *{total} грн*\n"
         f"💳 На карту: `{card}`\n"
-        f"📞 Номер заказа: *#{order_id}*\n\n"
+        f"📞 Номер заказа: *#{order_number}*\n\n"
         f"⏳ Ожидайте подтверждения.",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
@@ -339,7 +360,7 @@ def process_sell_ton_card(message, amount, total):
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🔄 *ПРОДАЖА TON #{order_id}*\n"
+            f"🔄 *ПРОДАЖА TON #{order_number}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
@@ -347,10 +368,11 @@ def process_sell_ton_card(message, amount, total):
             f"💎 Продаёт: *{amount} TON*\n"
             f"💰 К выплате: *{total} грн*\n"
             f"💳 Карта: `{card}`\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает выплаты",
             parse_mode="Markdown",
-            reply_markup=confirm_button(order_id, message.chat.id, action_type="sell")
+            reply_markup=confirm_button(order_number, message.chat.id, action_type="sell")
         )
 
 # ========== USDT BUY ==========
@@ -389,10 +411,10 @@ def process_usdt_wallet(message, amount, total):
         handle_menu(message)
         return
     wallet = message.text
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    order_number = generate_order_number()
+    now = format_kyiv_time()
     user_orders[message.chat.id] = {
-        "order_id": order_id, "amount": amount, "total": total,
+        "order_number": order_number, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "USDT", "date": now, "type": "buy"
     }
     save_order_to_history(message.chat.id, user_orders[message.chat.id])
@@ -408,14 +430,14 @@ def process_usdt_wallet(message, amount, total):
         f"👛 Кошелёк: `{wallet}`\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📸 После оплаты отправьте квитанцию\n"
-        f"📞 Номер заказа: *#{order_id}*",
+        f"📞 Номер заказа: *#{order_number}*",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id} (ПОКУПКА USDT)*\n"
+            f"🆕 *НОВЫЙ ЗАКАЗ #{order_number} (ПОКУПКА USDT)*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
@@ -423,6 +445,7 @@ def process_usdt_wallet(message, amount, total):
             f"💵 Количество: *{amount} USDT*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает оплаты",
             parse_mode="Markdown"
@@ -463,9 +486,9 @@ def process_sell_usdt_card(message, amount, total):
         handle_menu(message)
         return
     card = message.text
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "USDT", "type": "sell", "date": now}
+    order_number = generate_order_number()
+    now = format_kyiv_time()
+    user_orders[message.chat.id] = {"order_number": order_number, "amount": amount, "total": total, "crypto": "USDT", "type": "sell", "date": now}
     save_order_to_history(message.chat.id, user_orders[message.chat.id])
     
     bot.send_message(
@@ -473,7 +496,7 @@ def process_sell_usdt_card(message, amount, total):
         f"✅ *Заявка на продажу USDT принята!*\n\n"
         f"💰 Вы получите: *{total} грн*\n"
         f"💳 На карту: `{card}`\n"
-        f"📞 Номер заказа: *#{order_id}*\n\n"
+        f"📞 Номер заказа: *#{order_number}*\n\n"
         f"⏳ Ожидайте подтверждения.",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
@@ -482,7 +505,7 @@ def process_sell_usdt_card(message, amount, total):
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🔄 *ПРОДАЖА USDT #{order_id}*\n"
+            f"🔄 *ПРОДАЖА USDT #{order_number}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
@@ -490,10 +513,11 @@ def process_sell_usdt_card(message, amount, total):
             f"💵 Продаёт: *{amount} USDT*\n"
             f"💰 К выплате: *{total} грн*\n"
             f"💳 Карта: `{card}`\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает выплаты",
             parse_mode="Markdown",
-            reply_markup=confirm_button(order_id, message.chat.id, action_type="sell")
+            reply_markup=confirm_button(order_number, message.chat.id, action_type="sell")
         )
 
 # ========== STARS ==========
@@ -555,12 +579,12 @@ def stars_qty_selected(call):
     )
 
 def finish_stars_order(message, amount, stars_type, username_target):
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    order_number = generate_order_number()
+    now = format_kyiv_time()
     who = "Другу" if stars_type == "friend" else "Себе"
     total = round(amount * STARS_BUY_RATE, 2)
     user_orders[message.chat.id] = {
-        "order_id": order_id, "amount": amount, "total": total,
+        "order_number": order_number, "amount": amount, "total": total,
         "wallet": username_target, "crypto": "Stars", "date": now, "type": "buy"
     }
     save_order_to_history(message.chat.id, user_orders[message.chat.id])
@@ -576,20 +600,21 @@ def finish_stars_order(message, amount, stars_type, username_target):
         f"━━━━━━━━━━━━━━━━━━\n"
         f"💰 К оплате: *{total} грн*\n"
         f"📸 После оплаты отправьте квитанцию\n"
-        f"📞 Номер заказа: *#{order_id}*",
+        f"📞 Номер заказа: *#{order_number}*",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id}*\n"
+            f"🆕 *НОВЫЙ ЗАКАЗ #{order_number}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⭐️ Stars: *{amount}* — *{total} грн*\n"
             f"👤 Для: {who} ({username_target})\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает оплаты",
             parse_mode="Markdown"
@@ -649,10 +674,10 @@ def process_sell_stars_card(message, amount, total):
         handle_menu(message)
         return
     card = message.text
-    order_id = generate_order_id()
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    order_number = generate_order_number()
+    now = format_kyiv_time()
     order_data = {
-        "order_id": order_id,
+        "order_number": order_number,
         "amount": amount,
         "total": total,
         "crypto": "Stars",
@@ -667,7 +692,7 @@ def process_sell_stars_card(message, amount, total):
         f"⭐️ Продаёте: *{amount} Stars*\n"
         f"💰 Получите: *{total} грн*\n"
         f"💳 На карту: `{card}`\n"
-        f"📞 Номер заказа: *#{order_id}*\n\n"
+        f"📞 Номер заказа: *#{order_number}*\n\n"
         f"⏳ Ожидайте — с вами свяжутся для подтверждения.",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
@@ -675,7 +700,7 @@ def process_sell_stars_card(message, amount, total):
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🌟 *ПРОДАЖА STARS #{order_id}*\n"
+            f"🌟 *ПРОДАЖА STARS #{order_number}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
@@ -683,10 +708,11 @@ def process_sell_stars_card(message, amount, total):
             f"⭐️ Количество: *{amount} Stars*\n"
             f"💰 К выплате: *{total} грн*\n"
             f"💳 Карта: `{card}`\n"
+            f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает обработки",
             parse_mode="Markdown",
-            reply_markup=confirm_sell_stars_button(order_id, message.chat.id)
+            reply_markup=confirm_sell_stars_button(order_number, message.chat.id)
         )
 
 # ========== CALLBACK: ПОДТВЕРЖДЕНИЕ ПРОДАЖИ STARS ==========
@@ -697,7 +723,7 @@ def confirm_sell_stars_order(call):
         bot.answer_callback_query(call.id, "❌ Нет доступа!")
         return
     parts = call.data.split("_")
-    order_id = parts[3]
+    order_number = parts[3]
     user_id = int(parts[4])
     bot.send_message(
         user_id,
@@ -707,8 +733,8 @@ def confirm_sell_stars_order(call):
         reply_markup=leave_comment_button(), parse_mode="Markdown"
     )
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-    bot.answer_callback_query(call.id, f"✅ Продажа Stars #{order_id} подтверждена!")
-    bot.send_message(call.message.chat.id, f"✅ Продажа Stars *#{order_id}* подтверждена!", parse_mode="Markdown")
+    bot.answer_callback_query(call.id, f"✅ Продажа Stars #{order_number} подтверждена!")
+    bot.send_message(call.message.chat.id, f"✅ Продажа Stars *#{order_number}* подтверждена!", parse_mode="Markdown")
 
 # ========== КВИТАНЦИЯ ==========
 
@@ -718,12 +744,12 @@ def handle_receipt(message):
     if order_data and order_data.get("pending_comment"):
         save_comment_photo(message)
         return
-    order_id = order_data["order_id"] if order_data else "??????"
+    order_number = order_data["order_number"] if order_data else "??????"
     photo = message.photo[-1].file_id
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     bot.send_photo(
         message.chat.id, photo,
-        caption=f"✅ Заказ #{order_id} получен!\n"
+        caption=f"✅ Заказ #{order_number} получен!\n"
                 f"⏳ Сотрудники проверят квитанцию.\n"
                 f"⏰ Обычно 15–70 минут.\n"
                 f"⚠️ Рабочее время: 08:00–00:00 (Киев).",
@@ -732,13 +758,13 @@ def handle_receipt(message):
     for admin_id in ADMINS:
         bot.send_photo(
             admin_id, photo,
-            caption=f"📸 КВИТАНЦИЯ по заказу #{order_id}\n"
+            caption=f"📸 КВИТАНЦИЯ по заказу #{order_number}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"👤 Пользователь: {username}\n"
                     f"🆔 ID: {message.chat.id}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"✅ Клиент отправил квитанцию",
-            reply_markup=confirm_button(order_id, message.chat.id, action_type="buy")
+            reply_markup=confirm_button(order_number, message.chat.id, action_type="buy")
         )
 
 # ========== CALLBACK: ПОДТВЕРЖДЕНИЕ ПОКУПКИ / ПРОДАЖИ ==========
@@ -751,7 +777,7 @@ def confirm_order(call):
     parts = call.data.split("_")
     
     if parts[1] == "sell":
-        order_id = parts[2]
+        order_number = parts[2]
         user_id = int(parts[3])
         bot.send_message(
             user_id,
@@ -760,11 +786,11 @@ def confirm_order(call):
             f"💎 Спасибо, что выбрали нас! ❤️",
             reply_markup=leave_comment_button(), parse_mode="Markdown"
         )
-        bot.answer_callback_query(call.id, f"✅ Продажа #{order_id} подтверждена!")
+        bot.answer_callback_query(call.id, f"✅ Продажа #{order_number} подтверждена!")
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        bot.send_message(call.message.chat.id, f"✅ Продажа *#{order_id}* подтверждена, клиент уведомлён!", parse_mode="Markdown")
+        bot.send_message(call.message.chat.id, f"✅ Продажа *#{order_number}* подтверждена, клиент уведомлён!", parse_mode="Markdown")
     else:
-        order_id = parts[1]
+        order_number = parts[1]
         user_id = int(parts[2])
         order_data = user_orders.get(user_id)
         if order_data:
@@ -778,8 +804,8 @@ def confirm_order(call):
             reply_markup=leave_comment_button(), parse_mode="Markdown"
         )
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        bot.answer_callback_query(call.id, f"✅ Заказ #{order_id} подтверждён!")
-        bot.send_message(call.message.chat.id, f"✅ Заказ *#{order_id}* подтверждён, покупатель уведомлён!", parse_mode="Markdown")
+        bot.answer_callback_query(call.id, f"✅ Заказ #{order_number} подтверждён!")
+        bot.send_message(call.message.chat.id, f"✅ Заказ *#{order_number}* подтверждён, покупатель уведомлён!", parse_mode="Markdown")
 
 # ========== ОТЗЫВ ==========
 
@@ -802,11 +828,11 @@ def save_comment_photo(message):
     global review_counter
     order_data = user_orders.get(message.chat.id, {})
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
-    order_id = order_data.get("order_id", "??????")
+    order_number = order_data.get("order_number", "??????")
     amount = order_data.get("amount", "?")
     crypto = order_data.get("crypto", "?")
     comment = order_data.get("pending_comment", "?")
-    date = order_data.get("date", datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+    date = order_data.get("date", format_kyiv_time())
     photo = message.photo[-1].file_id
     order_data.pop("pending_comment", None)
     user_orders[message.chat.id] = order_data
@@ -818,7 +844,7 @@ def save_comment_photo(message):
         f"📝 *Отзыв #{review_number}*\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 Клиент: {username}\n"
-        f"💰 Куплено: {amount} {crypto}\n"
+        f"💰 Заказ #{order_number}: {amount} {crypto}\n"
         f"💬 Комментарий: {comment}\n"
         f"📅 Дата: {date}"
     )
@@ -917,6 +943,11 @@ def admin_reply_keyboard(user_id, ticket_id):
         InlineKeyboardButton("💬 Ответить", callback_data=f"admin_reply_{user_id}_{ticket_id}"),
         InlineKeyboardButton("✅ Закрыть тикет", callback_data=f"admin_close_{user_id}_{ticket_id}")
     )
+    return markup
+
+def support_reply_keyboard(ticket_id):
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(InlineKeyboardButton("❌ Закрыть тикет", callback_data=f"user_close_{ticket_id}"))
     return markup
 
 support_tickets = {}
@@ -1128,11 +1159,6 @@ def process_admin_reply(message, user_id, ticket_id):
             parse_mode="Markdown"
         )
 
-def support_reply_keyboard(ticket_id):
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(InlineKeyboardButton("❌ Закрыть тикет", callback_data=f"user_close_{ticket_id}"))
-    return markup
-
 @bot.message_handler(func=lambda m: m.chat.id in support_tickets and 
                      support_tickets[m.chat.id].get("status") == "waiting_user_reply",
                      content_types=['text', 'photo', 'document'])
@@ -1258,7 +1284,7 @@ def calculator_keyboard():
     )
     
     return markup
-    
+
 @bot.message_handler(func=lambda m: m.text == "Калькулятор")
 def calculator(message):
     bot.send_message(
@@ -1478,5 +1504,5 @@ def process_calc_uah_to_stars(message):
             reply_markup=main_menu()
         )
         bot.register_next_step_handler(msg, process_calc_uah_to_stars)
-        
+
 bot.infinity_polling()
