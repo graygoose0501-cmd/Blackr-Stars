@@ -45,24 +45,28 @@ def main_menu():
     EMOJI_SUPPORT = "5413623448440160154"
     EMOJI_CALC = "5303214794336125778"
     
+    # Первый ряд - синий (TON и USDT)
     markup.row(
         KeyboardButton("TON", style="primary", icon_custom_emoji_id=EMOJI_TON),
         KeyboardButton("USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT)
     )
+    # Второй ряд - синий (Stars покупка и продажа)
     markup.row(
         KeyboardButton("Купить Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_BUY),
         KeyboardButton("Продать Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_SELL)
     )
+    # Третий ряд - зеленый (Профиль и Отзывы)
     markup.row(
         KeyboardButton("Профиль", style="success", icon_custom_emoji_id=EMOJI_PROFILE),
         KeyboardButton("Отзывы", style="success", icon_custom_emoji_id=EMOJI_REVIEWS)
     )
+    # Четвертый ряд - красный (Поддержка и Калькулятор)
     markup.row(
-        KeyboardButton("Поддержка", style="success", icon_custom_emoji_id=EMOJI_SUPPORT),
-        KeyboardButton("Калькулятор", style="success", icon_custom_emoji_id=EMOJI_CALC)
+        KeyboardButton("Поддержка", style="danger", icon_custom_emoji_id=EMOJI_SUPPORT),
+        KeyboardButton("Калькулятор", style="danger", icon_custom_emoji_id=EMOJI_CALC)
     )
     return markup
-
+    
 MENU_BUTTONS = [
     "TON", "USDT",
     "Купить Stars", "Продать Stars",
