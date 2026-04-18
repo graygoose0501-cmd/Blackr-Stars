@@ -812,13 +812,15 @@ def support(message):
     bot.send_message(message.chat.id, "🛠 Поддержка...", reply_markup=main_menu())
 
 def calculator_keyboard():
-    """Клавиатура для калькулятора - кнопки в столбик"""
-    markup = InlineKeyboardMarkup(row_width=1)
+    """Клавиатура для калькулятора - кнопки в 2 ряда по 3"""
+    markup = InlineKeyboardMarkup(row_width=3)
     
     markup.add(
         InlineKeyboardButton("💎 TON → 💰 Грн", callback_data="calc_ton_to_uah"),
         InlineKeyboardButton("💰 Грн → 💎 TON", callback_data="calc_uah_to_ton"),
-        InlineKeyboardButton("💵 USDT → 💰 Грн", callback_data="calc_usdt_to_uah"),
+        InlineKeyboardButton("💵 USDT → 💰 Грн", callback_data="calc_usdt_to_uah")
+    )
+    markup.add(
         InlineKeyboardButton("💰 Грн → 💵 USDT", callback_data="calc_uah_to_usdt"),
         InlineKeyboardButton("⭐️ Stars → 💰 Грн", callback_data="calc_stars_to_uah"),
         InlineKeyboardButton("💰 Грн → ⭐️ Stars", callback_data="calc_uah_to_stars")
@@ -848,7 +850,7 @@ def calculator_handler(call):
         msg = bot.send_message(
             call.message.chat.id,
             f"💎 *TON → Грн*\n"
-            f"Курс: *{TON_BUY_RATE} грн*\n\n"
+            f"Курс продажи: *{TON_SELL_RATE} грн*\n\n"
             f"Введите количество TON:",
             parse_mode="Markdown",
             reply_markup=main_menu()
@@ -859,7 +861,7 @@ def calculator_handler(call):
         msg = bot.send_message(
             call.message.chat.id,
             f"💰 *Грн → TON*\n"
-            f"Курс: *{TON_BUY_RATE} грн*\n\n"
+            f"Курс покупки: *{TON_BUY_RATE} грн*\n\n"
             f"Введите сумму в гривнах:",
             parse_mode="Markdown",
             reply_markup=main_menu()
@@ -870,7 +872,7 @@ def calculator_handler(call):
         msg = bot.send_message(
             call.message.chat.id,
             f"💵 *USDT → Грн*\n"
-            f"Курс: *{USDT_BUY_RATE} грн*\n\n"
+            f"Курс продажи: *{USDT_SELL_RATE} грн*\n\n"
             f"Введите количество USDT:",
             parse_mode="Markdown",
             reply_markup=main_menu()
@@ -881,7 +883,7 @@ def calculator_handler(call):
         msg = bot.send_message(
             call.message.chat.id,
             f"💰 *Грн → USDT*\n"
-            f"Курс: *{USDT_BUY_RATE} грн*\n\n"
+            f"Курс покупки: *{USDT_BUY_RATE} грн*\n\n"
             f"Введите сумму в гривнах:",
             parse_mode="Markdown",
             reply_markup=main_menu()
@@ -892,7 +894,7 @@ def calculator_handler(call):
         msg = bot.send_message(
             call.message.chat.id,
             f"⭐️ *Stars → Грн*\n"
-            f"Курс покупки: *{STARS_BUY_RATE} грн*\n\n"
+            f"Курс продажи: *{STARS_SELL_RATE} грн*\n\n"
             f"Введите количество Stars:",
             parse_mode="Markdown",
             reply_markup=main_menu()
@@ -918,12 +920,12 @@ def process_calc_ton_to_uah(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * TON_BUY_RATE, 2)
+        total = round(amount * TON_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
         bot.send_message(
             message.chat.id,
             f"💎 *Результат:*\n\n"
             f"{amount} TON = *{total} грн*\n"
-            f"Курс: {TON_BUY_RATE} грн/TON",
+            f"Курс продажи: {TON_SELL_RATE} грн/TON",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -941,12 +943,12 @@ def process_calc_uah_to_ton(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount / TON_BUY_RATE, 4)
+        total = round(amount / TON_BUY_RATE, 4)  # Используем курс ПОКУПКИ
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
             f"{amount} грн = *{total} TON*\n"
-            f"Курс: {TON_BUY_RATE} грн/TON",
+            f"Курс покупки: {TON_BUY_RATE} грн/TON",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -964,12 +966,12 @@ def process_calc_usdt_to_uah(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * USDT_BUY_RATE, 2)
+        total = round(amount * USDT_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
         bot.send_message(
             message.chat.id,
             f"💵 *Результат:*\n\n"
             f"{amount} USDT = *{total} грн*\n"
-            f"Курс: {USDT_BUY_RATE} грн/USDT",
+            f"Курс продажи: {USDT_SELL_RATE} грн/USDT",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -987,12 +989,12 @@ def process_calc_uah_to_usdt(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount / USDT_BUY_RATE, 4)
+        total = round(amount / USDT_BUY_RATE, 4)  # Используем курс ПОКУПКИ
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
             f"{amount} грн = *{total} USDT*\n"
-            f"Курс: {USDT_BUY_RATE} грн/USDT",
+            f"Курс покупки: {USDT_BUY_RATE} грн/USDT",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -1010,12 +1012,12 @@ def process_calc_stars_to_uah(message):
         return
     try:
         amount = int(float(message.text.replace(",", ".")))
-        total = round(amount * STARS_BUY_RATE, 2)
+        total = round(amount * STARS_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
         bot.send_message(
             message.chat.id,
             f"⭐️ *Результат:*\n\n"
             f"{amount} Stars = *{total} грн*\n"
-            f"Курс: {STARS_BUY_RATE} грн/Star",
+            f"Курс продажи: {STARS_SELL_RATE} грн/Star",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -1033,12 +1035,12 @@ def process_calc_uah_to_stars(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = int(amount / STARS_BUY_RATE)
+        total = int(amount / STARS_BUY_RATE)  # Используем курс ПОКУПКИ
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
             f"{amount} грн = *{total} Stars*\n"
-            f"Курс: {STARS_BUY_RATE} грн/Star",
+            f"Курс покупки: {STARS_BUY_RATE} грн/Star",
             parse_mode="Markdown",
             reply_markup=calculator_keyboard()
         )
@@ -1049,4 +1051,5 @@ def process_calc_uah_to_stars(message):
             reply_markup=main_menu()
         )
         bot.register_next_step_handler(msg, process_calc_uah_to_stars)
+        
 bot.infinity_polling()
