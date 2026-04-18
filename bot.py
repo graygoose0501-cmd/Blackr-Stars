@@ -12,29 +12,27 @@ bot = telebot.TeleBot(TOKEN)
 KYIV_TZ = pytz.timezone('Europe/Kiev')
 
 def get_kyiv_time():
-    """Возвращает текущее время в Киеве"""
     return datetime.datetime.now(KYIV_TZ)
 
 def format_kyiv_time(dt=None):
-    """Форматирует время в строку дд.мм.гггг чч:мм"""
     if dt is None:
         dt = get_kyiv_time()
     return dt.strftime("%d.%m.%Y %H:%M")
 # ==============================
 
-# ===== КУРСИ (міняй тут) =====
+# ===== КУРСИ =====
 TON_BUY_RATE = 72.3
-TON_SELL_RATE = 70.0      # Курс продажи TON
+TON_SELL_RATE = 70.0
 
 USDT_BUY_RATE = 41.5
-USDT_SELL_RATE = 40.0     # Курс продажи USDT
+USDT_SELL_RATE = 40.0
 
-STARS_BUY_RATE = 0.76     # 100 Stars = 76 грн
+STARS_BUY_RATE = 0.76
 STARS_SELL_RATE = 0.40
 STARS_MIN_SELL = 50
 # =============================
 
-# ===== РЕКВІЗИТИ (міняй тут) =====
+# ===== РЕКВІЗИТИ =====
 CARD_NUMBER = "4441111057153763"
 CARD_OWNER = "Євгеній К."
 BANK_NAME = "Monobank🐾"
@@ -44,15 +42,12 @@ ADMINS = [6227572453, 6794644473]
 REVIEWS_CHANNEL_ID = -1003764314898
 user_orders = {}
 
-# Счетчики
 review_counter = 1
-order_counter = 1  # Счетчик заказов
+order_counter = 1
 
-# ========== ИСТОРИЯ ЗАКАЗОВ ДЛЯ ПРОФИЛЯ ==========
 user_history = {}
 
 def save_order_to_history(user_id, order_data):
-    """Сохраняет заказ в историю пользователя"""
     if user_id not in user_history:
         user_history[user_id] = []
     
@@ -72,13 +67,8 @@ def save_order_to_history(user_id, order_data):
         user_history[user_id] = user_history[user_id][:10]
 
 def get_user_stats(user_id):
-    """Получает статистику пользователя"""
     if user_id not in user_history:
-        return {
-            "total_orders": 0,
-            "total_spent": 0,
-            "last_orders": []
-        }
+        return {"total_orders": 0, "total_spent": 0, "last_orders": []}
     
     orders = user_history[user_id]
     total_spent = sum(order["total"] for order in orders if order["type"] == "buy")
@@ -127,7 +117,6 @@ MENU_BUTTONS = [
 ]
 
 def generate_order_number():
-    """Генерирует порядковый номер заказа"""
     global order_counter
     number = order_counter
     order_counter += 1
@@ -167,11 +156,12 @@ def usdt_inline_menu():
     )
     return markup
 
-def stars_for_who_buttons():
+def for_who_buttons(crypto_type):
+    """Кнопки выбора для кого покупать (TON/USDT/Stars)"""
     markup = InlineKeyboardMarkup()
     markup.row(
-        InlineKeyboardButton("👥 Другу", callback_data="stars_friend"),
-        InlineKeyboardButton("👤 Себе", callback_data="stars_self")
+        InlineKeyboardButton("👤 Себе", callback_data=f"{crypto_type}_self"),
+        InlineKeyboardButton("👥 Другу", callback_data=f"{crypto_type}_friend")
     )
     return markup
 
@@ -236,8 +226,44 @@ def usdt_menu(message):
 @bot.callback_query_handler(func=lambda call: call.data == "ton_buy")
 def buy_ton_start(call):
     bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "💎 *Для кого покупаем TON?*",
+        reply_markup=for_who_buttons("ton"),
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "ton_self")
+def ton_for_self(call):
+    bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {"ton_type": "self", "username_target": f"@{call.from_user.username}" if call.from_user.username else f"ID{call.message.chat.id}"}
     msg = bot.send_message(
         call.message.chat.id,
+        f"💎 Курс TON: {TON_BUY_RATE} грн\n\nВведите количество TON для заказа:",
+        reply_markup=main_menu()
+    )
+    bot.register_next_step_handler(msg, process_ton_amount)
+
+@bot.callback_query_handler(func=lambda call: call.data == "ton_friend")
+def ton_for_friend(call):
+    bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {"ton_type": "friend"}
+    msg = bot.send_message(
+        call.message.chat.id,
+        "👥 Введите юзернейм друга для получения TON:\n_(например: @username)_",
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, process_ton_friend_username)
+
+def process_ton_friend_username(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    username = message.text
+    user_orders[message.chat.id]["username_target"] = username
+    msg = bot.send_message(
+        message.chat.id,
         f"💎 Курс TON: {TON_BUY_RATE} грн\n\nВведите количество TON для заказа:",
         reply_markup=main_menu()
     )
@@ -268,6 +294,10 @@ def process_ton_wallet(message, amount, total):
     wallet = message.text
     order_number = generate_order_number()
     now = format_kyiv_time()
+    ton_data = user_orders.get(message.chat.id, {})
+    who = "Другу" if ton_data.get("ton_type") == "friend" else "Себе"
+    username_target = ton_data.get("username_target", wallet)
+    
     user_orders[message.chat.id] = {
         "order_number": order_number, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "TON", "date": now, "type": "buy"
@@ -283,6 +313,7 @@ def process_ton_wallet(message, amount, total):
         f"💎 Сумма: *{amount} TON*\n"
         f"💰 К оплате: *{total} грн*\n"
         f"👛 Кошелёк: `{wallet}`\n"
+        f"👤 Для: {who} ({username_target})\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📸 После оплаты отправьте квитанцию\n"
         f"📞 Номер заказа: *#{order_number}*",
@@ -300,6 +331,7 @@ def process_ton_wallet(message, amount, total):
             f"💎 Количество: *{amount} TON*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
+            f"👤 Для: {who} ({username_target})\n"
             f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает оплаты",
@@ -379,8 +411,44 @@ def process_sell_ton_card(message, amount, total):
 @bot.callback_query_handler(func=lambda call: call.data == "usdt_buy")
 def buy_usdt_start(call):
     bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "💵 *Для кого покупаем USDT?*",
+        reply_markup=for_who_buttons("usdt"),
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "usdt_self")
+def usdt_for_self(call):
+    bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {"usdt_type": "self", "username_target": f"@{call.from_user.username}" if call.from_user.username else f"ID{call.message.chat.id}"}
     msg = bot.send_message(
         call.message.chat.id,
+        f"💵 Курс USDT: {USDT_BUY_RATE} грн\n\nВведите количество USDT для заказа:",
+        reply_markup=main_menu()
+    )
+    bot.register_next_step_handler(msg, process_usdt_amount)
+
+@bot.callback_query_handler(func=lambda call: call.data == "usdt_friend")
+def usdt_for_friend(call):
+    bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {"usdt_type": "friend"}
+    msg = bot.send_message(
+        call.message.chat.id,
+        "👥 Введите юзернейм друга для получения USDT:\n_(например: @username)_",
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, process_usdt_friend_username)
+
+def process_usdt_friend_username(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    username = message.text
+    user_orders[message.chat.id]["username_target"] = username
+    msg = bot.send_message(
+        message.chat.id,
         f"💵 Курс USDT: {USDT_BUY_RATE} грн\n\nВведите количество USDT для заказа:",
         reply_markup=main_menu()
     )
@@ -413,6 +481,10 @@ def process_usdt_wallet(message, amount, total):
     wallet = message.text
     order_number = generate_order_number()
     now = format_kyiv_time()
+    usdt_data = user_orders.get(message.chat.id, {})
+    who = "Другу" if usdt_data.get("usdt_type") == "friend" else "Себе"
+    username_target = usdt_data.get("username_target", wallet)
+    
     user_orders[message.chat.id] = {
         "order_number": order_number, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "USDT", "date": now, "type": "buy"
@@ -428,6 +500,7 @@ def process_usdt_wallet(message, amount, total):
         f"💵 Сумма: *{amount} USDT*\n"
         f"💰 К оплате: *{total} грн*\n"
         f"👛 Кошелёк: `{wallet}`\n"
+        f"👤 Для: {who} ({username_target})\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"📸 После оплаты отправьте квитанцию\n"
         f"📞 Номер заказа: *#{order_number}*",
@@ -445,6 +518,7 @@ def process_usdt_wallet(message, amount, total):
             f"💵 Количество: *{amount} USDT*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
+            f"👤 Для: {who} ({username_target})\n"
             f"🕐 Время: {now}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⏳ Статус: Ожидает оплаты",
@@ -526,38 +600,43 @@ def process_sell_usdt_card(message, amount, total):
 def buy_stars(message):
     bot.send_message(
         message.chat.id,
-        "⭐️ *Для кого покупаем Telegram Stars?* 👥",
-        reply_markup=stars_for_who_buttons(),
+        "⭐️ *Для кого покупаем Telegram Stars?*",
+        reply_markup=for_who_buttons("stars"),
         parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "stars_self")
+def stars_for_self(call):
+    bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {
+        "stars_type": "self",
+        "username_target": f"@{call.from_user.username}" if call.from_user.username else f"ID{call.message.chat.id}",
+        "awaiting_stars_amount": True
+    }
+    bot.send_message(
+        call.message.chat.id,
+        "⭐️ Сколько Stars хотите купить?\nВыберите или введите своё количество:",
+        reply_markup=stars_amount_buttons()
     )
 
 @bot.callback_query_handler(func=lambda call: call.data == "stars_friend")
 def stars_for_friend(call):
     bot.answer_callback_query(call.id)
+    user_orders[call.message.chat.id] = {"stars_type": "friend"}
     msg = bot.send_message(
         call.message.chat.id,
         "👥 Введите юзернейм друга:\n_(например: @username)_",
         reply_markup=main_menu(), parse_mode="Markdown"
     )
-    bot.register_next_step_handler(msg, process_stars_username, "friend")
+    bot.register_next_step_handler(msg, process_stars_friend_username)
 
-@bot.callback_query_handler(func=lambda call: call.data == "stars_self")
-def stars_for_self(call):
-    bot.answer_callback_query(call.id)
-    msg = bot.send_message(
-        call.message.chat.id,
-        "👤 Введите ваш юзернейм:\n_(например: @username)_",
-        reply_markup=main_menu(), parse_mode="Markdown"
-    )
-    bot.register_next_step_handler(msg, process_stars_username, "self")
-
-def process_stars_username(message, stars_type):
+def process_stars_friend_username(message):
     if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     username_target = message.text
     user_orders[message.chat.id] = {
-        "stars_type": stars_type,
+        "stars_type": "friend",
         "username_target": username_target,
         "awaiting_stars_amount": True
     }
