@@ -812,22 +812,20 @@ def support(message):
     bot.send_message(message.chat.id, "🛠 Поддержка...", reply_markup=main_menu())
 
 def calculator_keyboard():
-    """Клавиатура для калькулятора - кнопки в 2 ряда по 3"""
-    markup = InlineKeyboardMarkup(row_width=3)
+    """Клавиатура для калькулятора - кнопки в столбик"""
+    markup = InlineKeyboardMarkup(row_width=1)
     
     markup.add(
         InlineKeyboardButton("💎 TON → 💰 Грн", callback_data="calc_ton_to_uah"),
         InlineKeyboardButton("💰 Грн → 💎 TON", callback_data="calc_uah_to_ton"),
-        InlineKeyboardButton("💵 USDT → 💰 Грн", callback_data="calc_usdt_to_uah")
-    )
-    markup.add(
+        InlineKeyboardButton("💵 USDT → 💰 Грн", callback_data="calc_usdt_to_uah"),
         InlineKeyboardButton("💰 Грн → 💵 USDT", callback_data="calc_uah_to_usdt"),
         InlineKeyboardButton("⭐️ Stars → 💰 Грн", callback_data="calc_stars_to_uah"),
         InlineKeyboardButton("💰 Грн → ⭐️ Stars", callback_data="calc_uah_to_stars")
     )
     
     return markup
-
+    
 @bot.message_handler(func=lambda m: m.text == "Калькулятор")
 def calculator(message):
     bot.send_message(
