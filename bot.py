@@ -32,10 +32,50 @@ user_orders = {}
 # Счетчик отзывов
 review_counter = 1
 
+# ========== ИСТОРИЯ ЗАКАЗОВ ДЛЯ ПРОФИЛЯ ==========
+user_history = {}
+
+def save_order_to_history(user_id, order_data):
+    """Сохраняет заказ в историю пользователя"""
+    if user_id not in user_history:
+        user_history[user_id] = []
+    
+    history_entry = {
+        "date": order_data.get("date", datetime.datetime.now().strftime("%d.%m.%Y %H:%M")),
+        "order_id": order_data.get("order_id", "??????"),
+        "crypto": order_data.get("crypto", "?"),
+        "amount": order_data.get("amount", 0),
+        "total": order_data.get("total", 0),
+        "type": order_data.get("type", "buy"),
+        "status": order_data.get("status", "завершен")
+    }
+    
+    user_history[user_id].insert(0, history_entry)
+    
+    if len(user_history[user_id]) > 10:
+        user_history[user_id] = user_history[user_id][:10]
+
+def get_user_stats(user_id):
+    """Получает статистику пользователя"""
+    if user_id not in user_history:
+        return {
+            "total_orders": 0,
+            "total_spent": 0,
+            "last_orders": []
+        }
+    
+    orders = user_history[user_id]
+    total_spent = sum(order["total"] for order in orders if order["type"] == "buy")
+    
+    return {
+        "total_orders": len(orders),
+        "total_spent": round(total_spent, 2),
+        "last_orders": orders[:3]
+    }
+
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     
-    # ID ваших кастомных эмодзи
     EMOJI_TON = "5078343973303485905"
     EMOJI_USDT = "5080137014775383220"
     EMOJI_STARS_BUY = "5469641199348363998"
@@ -45,22 +85,18 @@ def main_menu():
     EMOJI_SUPPORT = "5413623448440160154"
     EMOJI_CALC = "5303214794336125778"
     
-    # Первый ряд - синий (TON и USDT)
     markup.row(
         KeyboardButton("TON", style="primary", icon_custom_emoji_id=EMOJI_TON),
         KeyboardButton("USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT)
     )
-    # Второй ряд - синий (Stars покупка и продажа)
     markup.row(
         KeyboardButton("Купить Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_BUY),
         KeyboardButton("Продать Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_SELL)
     )
-    # Третий ряд - зеленый (Профиль и Отзывы)
     markup.row(
         KeyboardButton("Профиль", style="success", icon_custom_emoji_id=EMOJI_PROFILE),
         KeyboardButton("Отзывы", style="success", icon_custom_emoji_id=EMOJI_REVIEWS)
     )
-    # Четвертый ряд - красный (Поддержка и Калькулятор)
     markup.row(
         KeyboardButton("Поддержка", style="danger", icon_custom_emoji_id=EMOJI_SUPPORT),
         KeyboardButton("Калькулятор", style="danger", icon_custom_emoji_id=EMOJI_CALC)
@@ -216,6 +252,8 @@ def process_ton_wallet(message, amount, total):
         "order_id": order_id, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "TON", "date": now, "type": "buy"
     }
+    save_order_to_history(message.chat.id, user_orders[message.chat.id])
+    
     bot.send_message(
         message.chat.id,
         f"💳 *Банк {BANK_NAME}*\n"
@@ -283,7 +321,9 @@ def process_sell_ton_card(message, amount, total):
         return
     card = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "TON", "type": "sell"}
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "TON", "type": "sell", "date": now}
+    save_order_to_history(message.chat.id, user_orders[message.chat.id])
     
     bot.send_message(
         message.chat.id,
@@ -355,6 +395,8 @@ def process_usdt_wallet(message, amount, total):
         "order_id": order_id, "amount": amount, "total": total,
         "wallet": wallet, "crypto": "USDT", "date": now, "type": "buy"
     }
+    save_order_to_history(message.chat.id, user_orders[message.chat.id])
+    
     bot.send_message(
         message.chat.id,
         f"💳 *Банк {BANK_NAME}*\n"
@@ -422,7 +464,9 @@ def process_sell_usdt_card(message, amount, total):
         return
     card = message.text
     order_id = generate_order_id()
-    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "USDT", "type": "sell"}
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "USDT", "type": "sell", "date": now}
+    save_order_to_history(message.chat.id, user_orders[message.chat.id])
     
     bot.send_message(
         message.chat.id,
@@ -517,8 +561,10 @@ def finish_stars_order(message, amount, stars_type, username_target):
     total = round(amount * STARS_BUY_RATE, 2)
     user_orders[message.chat.id] = {
         "order_id": order_id, "amount": amount, "total": total,
-        "wallet": username_target, "crypto": "Stars", "date": now
+        "wallet": username_target, "crypto": "Stars", "date": now, "type": "buy"
     }
+    save_order_to_history(message.chat.id, user_orders[message.chat.id])
+    
     bot.send_message(
         message.chat.id,
         f"💳 *Банк {BANK_NAME}*\n"
@@ -558,7 +604,7 @@ def sell_stars(message):
         f"💰 Мы покупаем звёзды по курсу:\n"
         f"1⭐️ = *{STARS_SELL_RATE} грн*\n"
         f"📦 Минимум — *{STARS_MIN_SELL} звёзд*\n\n"
-        f"🚀 За продажу *1000⭐️* ты получишь *400 грн* за 5 минут!",
+        f"🚀 За продажу *1000⭐️* ты получишь *{STARS_SELL_RATE * 1000} грн* за 5 минут!",
         reply_markup=sell_stars_inline_button(),
         parse_mode="Markdown"
     )
@@ -595,7 +641,7 @@ def process_sell_stars_amount(message):
         )
         bot.register_next_step_handler(msg, process_sell_stars_card, amount, total)
     except (ValueError, AttributeError):
-        msg = bot.send_message(message.chat.id, "❌ Введите целое число! Например: 1000", reply_markup=main_menu())
+        msg = bot.send_message(message.chat.id, "❌ Введите целое число! Например: 100", reply_markup=main_menu())
         bot.register_next_step_handler(msg, process_sell_stars_amount)
 
 def process_sell_stars_card(message, amount, total):
@@ -604,6 +650,17 @@ def process_sell_stars_card(message, amount, total):
         return
     card = message.text
     order_id = generate_order_id()
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    order_data = {
+        "order_id": order_id,
+        "amount": amount,
+        "total": total,
+        "crypto": "Stars",
+        "date": now,
+        "type": "sell"
+    }
+    save_order_to_history(message.chat.id, order_data)
+    
     bot.send_message(
         message.chat.id,
         f"✅ *Заявка принята!*\n\n"
@@ -693,7 +750,7 @@ def confirm_order(call):
         return
     parts = call.data.split("_")
     
-    if parts[1] == "sell": # confirm_sell_12345_67890
+    if parts[1] == "sell":
         order_id = parts[2]
         user_id = int(parts[3])
         bot.send_message(
@@ -790,9 +847,44 @@ def handle_menu(message):
     elif message.text == "Калькулятор":
         calculator(message)
 
+# ========== ПРОФИЛЬ ==========
+
 @bot.message_handler(func=lambda m: m.text == "Профиль")
 def profile(message):
-    bot.send_message(message.chat.id, "👤 Ваш профиль...", reply_markup=main_menu())
+    user_id = message.chat.id
+    user_name = message.from_user.first_name or "Не указано"
+    
+    stats = get_user_stats(user_id)
+    
+    profile_text = (
+        f"👤 *Профиль*\n\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"👋 Имя: {user_name}\n\n"
+        f"📊 *Статистика:*\n"
+        f"📦 Заказов: *{stats['total_orders']}*\n"
+        f"💰 Потрачено: *{stats['total_spent']} грн*\n\n"
+    )
+    
+    if stats['last_orders']:
+        profile_text += "📋 *Последние заказы:*\n"
+        for i, order in enumerate(stats['last_orders'], 1):
+            emoji = "💎" if order["crypto"] == "TON" else ("💵" if order["crypto"] == "USDT" else "⭐️")
+            order_type = "🟢 Покупка" if order["type"] == "buy" else "🔴 Продажа"
+            profile_text += (
+                f"\n{i}. {emoji} #{order['order_id']}\n"
+                f"   {order_type}: {order['amount']} {order['crypto']}\n"
+                f"   Сумма: {order['total']} грн\n"
+                f"   📅 {order['date']}\n"
+            )
+    else:
+        profile_text += "📋 *Последние заказы:*\n_У вас пока нет заказов_"
+    
+    bot.send_message(
+        message.chat.id,
+        profile_text,
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
 
 @bot.message_handler(func=lambda m: m.text == "Отзывы")
 def reviews(message):
@@ -810,19 +902,16 @@ def reviews(message):
 # ========== ПОДДЕРЖКА ==========
 
 def support_inline_keyboard():
-    """Клавиатура для раздела поддержки"""
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(InlineKeyboardButton("✉️ Написать", callback_data="support_write"))
     return markup
 
 def support_cancel_keyboard():
-    """Клавиатура с кнопкой отмены"""
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(InlineKeyboardButton("❌ Отменить", callback_data="support_cancel"))
     return markup
 
 def admin_reply_keyboard(user_id, ticket_id):
-    """Клавиатура для админов для ответа пользователю"""
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
         InlineKeyboardButton("💬 Ответить", callback_data=f"admin_reply_{user_id}_{ticket_id}"),
@@ -830,7 +919,6 @@ def admin_reply_keyboard(user_id, ticket_id):
     )
     return markup
 
-# Словарь для хранения активных тикетов
 support_tickets = {}
 ticket_counter = 1
 
@@ -852,7 +940,6 @@ def support_write(call):
     
     bot.answer_callback_query(call.id)
     
-    # Создаем новый тикет
     ticket_id = ticket_counter
     ticket_counter += 1
     
@@ -898,7 +985,6 @@ def support_cancel(call):
         parse_mode="Markdown"
     )
 
-# Обработчик сообщений для поддержки (текст, фото, документы)
 @bot.message_handler(func=lambda m: m.chat.id in support_tickets and 
                      support_tickets[m.chat.id].get("status") == "waiting_message",
                      content_types=['text', 'photo', 'document'])
@@ -907,7 +993,6 @@ def handle_support_message(message):
     ticket_id = ticket_data["ticket_id"]
     username = ticket_data["username"]
     
-    # Удаляем кнопку "Отменить" из предыдущего сообщения
     try:
         bot.edit_message_reply_markup(
             message.chat.id,
@@ -917,7 +1002,6 @@ def handle_support_message(message):
     except:
         pass
     
-    # Отправляем подтверждение пользователю
     bot.send_message(
         message.chat.id,
         f"✅ *Тикет #{ticket_id} отправлен!*\n"
@@ -926,7 +1010,6 @@ def handle_support_message(message):
         parse_mode="Markdown"
     )
     
-    # Формируем сообщение для админов
     admin_message = (
         f"📩 *НОВЫЙ ТИКЕТ #{ticket_id}*\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -935,7 +1018,6 @@ def handle_support_message(message):
         f"━━━━━━━━━━━━━━━━━━\n"
     )
     
-    # Отправляем админам в зависимости от типа сообщения
     for admin_id in ADMINS:
         try:
             if message.content_type == 'text':
@@ -972,11 +1054,8 @@ def handle_support_message(message):
         except Exception as e:
             print(f"Ошибка отправки админу {admin_id}: {e}")
     
-    # Обновляем статус тикета
     support_tickets[message.chat.id]["status"] = "waiting_reply"
     support_tickets[message.chat.id]["last_message"] = message
-
-# ========== ОТВЕТ АДМИНА ==========
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_reply_"))
 def admin_reply_start(call):
@@ -990,7 +1069,6 @@ def admin_reply_start(call):
     user_id = int(parts[2])
     ticket_id = int(parts[3])
     
-    # Сохраняем данные для ответа
     support_tickets[f"admin_{call.from_user.id}"] = {
         "replying_to": user_id,
         "ticket_id": ticket_id
@@ -1009,7 +1087,6 @@ def process_admin_reply(message, user_id, ticket_id):
         return
     
     try:
-        # Отправляем ответ пользователю
         bot.send_message(
             user_id,
             f"💬 *Поддержка | Тикет #{ticket_id}*\n\n"
@@ -1020,14 +1097,12 @@ def process_admin_reply(message, user_id, ticket_id):
             reply_markup=support_reply_keyboard(ticket_id)
         )
         
-        # Активируем режим ожидания ответа от пользователя
         support_tickets[user_id] = {
             "ticket_id": ticket_id,
             "status": "waiting_user_reply",
             "user_id": user_id
         }
         
-        # Уведомляем админа
         bot.send_message(
             message.chat.id,
             f"✅ *Ответ отправлен пользователю!*\n"
@@ -1035,7 +1110,6 @@ def process_admin_reply(message, user_id, ticket_id):
             parse_mode="Markdown"
         )
         
-        # Уведомляем других админов
         username = f"@{message.from_user.username}" if message.from_user.username else "Админ"
         for admin_id in ADMINS:
             if admin_id != message.chat.id:
@@ -1055,12 +1129,10 @@ def process_admin_reply(message, user_id, ticket_id):
         )
 
 def support_reply_keyboard(ticket_id):
-    """Клавиатура для пользователя при ответе"""
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(InlineKeyboardButton("❌ Закрыть тикет", callback_data=f"user_close_{ticket_id}"))
     return markup
 
-# Обработчик ответа пользователя в тикете
 @bot.message_handler(func=lambda m: m.chat.id in support_tickets and 
                      support_tickets[m.chat.id].get("status") == "waiting_user_reply",
                      content_types=['text', 'photo', 'document'])
@@ -1069,10 +1141,8 @@ def handle_user_reply(message):
     ticket_id = ticket_data["ticket_id"]
     username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
     
-    # Меняем статус обратно
     support_tickets[message.chat.id]["status"] = "waiting_reply"
     
-    # Уведомление пользователю
     bot.send_message(
         message.chat.id,
         f"✅ *Ответ отправлен!*\n"
@@ -1080,7 +1150,6 @@ def handle_user_reply(message):
         parse_mode="Markdown"
     )
     
-    # Формируем сообщение для админов
     admin_message = (
         f"📩 *ОТВЕТ ПОЛЬЗОВАТЕЛЯ | Тикет #{ticket_id}*\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -1089,7 +1158,6 @@ def handle_user_reply(message):
         f"━━━━━━━━━━━━━━━━━━\n"
     )
     
-    # Отправляем админам
     for admin_id in ADMINS:
         try:
             if message.content_type == 'text':
@@ -1126,7 +1194,6 @@ def handle_user_reply(message):
         except Exception as e:
             print(f"Ошибка отправки админу {admin_id}: {e}")
 
-# Закрытие тикета админом
 @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_close_"))
 def admin_close_ticket(call):
     if call.from_user.id not in ADMINS:
@@ -1137,11 +1204,9 @@ def admin_close_ticket(call):
     user_id = int(parts[2])
     ticket_id = int(parts[3])
     
-    # Удаляем тикет пользователя
     if user_id in support_tickets:
         del support_tickets[user_id]
     
-    # Уведомляем пользователя
     try:
         bot.send_message(
             user_id,
@@ -1161,7 +1226,6 @@ def admin_close_ticket(call):
         parse_mode="Markdown"
     )
 
-# Закрытие тикета пользователем
 @bot.callback_query_handler(func=lambda call: call.data.startswith("user_close_"))
 def user_close_ticket(call):
     ticket_id = int(call.data.split("_")[2])
@@ -1179,8 +1243,9 @@ def user_close_ticket(call):
         parse_mode="Markdown"
     )
 
+# ========== КАЛЬКУЛЯТОР ==========
+
 def calculator_keyboard():
-    """Клавиатура для калькулятора - кнопки в столбик"""
     markup = InlineKeyboardMarkup(row_width=1)
     
     markup.add(
@@ -1203,8 +1268,6 @@ def calculator(message):
         reply_markup=calculator_keyboard(),
         parse_mode="Markdown"
     )
-
-# ========== ОБРАБОТЧИКИ КАЛЬКУЛЯТОРА ==========
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("calc_"))
 def calculator_handler(call):
@@ -1278,15 +1341,13 @@ def calculator_handler(call):
         )
         bot.register_next_step_handler(msg, process_calc_uah_to_stars)
 
-# ========== ФУНКЦИИ РАСЧЕТА ==========
-
 def process_calc_ton_to_uah(message):
     if message.text in MENU_BUTTONS:
         handle_menu(message)
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * TON_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
+        total = round(amount * TON_SELL_RATE, 2)
         bot.send_message(
             message.chat.id,
             f"💎 *Результат:*\n\n"
@@ -1309,7 +1370,7 @@ def process_calc_uah_to_ton(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount / TON_BUY_RATE, 4)  # Используем курс ПОКУПКИ
+        total = round(amount / TON_BUY_RATE, 4)
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
@@ -1332,7 +1393,7 @@ def process_calc_usdt_to_uah(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * USDT_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
+        total = round(amount * USDT_SELL_RATE, 2)
         bot.send_message(
             message.chat.id,
             f"💵 *Результат:*\n\n"
@@ -1355,7 +1416,7 @@ def process_calc_uah_to_usdt(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount / USDT_BUY_RATE, 4)  # Используем курс ПОКУПКИ
+        total = round(amount / USDT_BUY_RATE, 4)
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
@@ -1378,7 +1439,7 @@ def process_calc_stars_to_uah(message):
         return
     try:
         amount = int(float(message.text.replace(",", ".")))
-        total = round(amount * STARS_SELL_RATE, 2)  # Используем курс ПРОДАЖИ
+        total = round(amount * STARS_SELL_RATE, 2)
         bot.send_message(
             message.chat.id,
             f"⭐️ *Результат:*\n\n"
@@ -1401,7 +1462,7 @@ def process_calc_uah_to_stars(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = int(amount / STARS_BUY_RATE)  # Используем курс ПОКУПКИ
+        total = int(amount / STARS_BUY_RATE)
         bot.send_message(
             message.chat.id,
             f"💰 *Результат:*\n\n"
