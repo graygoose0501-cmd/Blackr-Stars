@@ -32,37 +32,52 @@ user_orders = {}
 # Счетчик отзывов
 review_counter = 1
 
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     
-    # Первый ряд - синий (primary)
+    # ID ваших кастомных эмодзи (замените на свои!)
+    # Примеры ID - НЕ РАБОЧИЕ, найдите свои через @tg_emoji_bot
+    EMOJI_TON = "5078343973303485905"      # ID для 💎
+    EMOJI_USDT = "5373141891321699087"     # ID для 💵
+    EMOJI_STARS_BUY = "5373141891321699088" # ID для ⭐️
+    EMOJI_STARS_SELL = "5373141891321699089" # ID для 🌟
+    EMOJI_PROFILE = "5373141891321699090"  # ID для 👤
+    EMOJI_REVIEWS = "5373141891321699091"  # ID для ✨
+    EMOJI_SUPPORT = "5373141891321699092"  # ID для 🛠
+    EMOJI_CALC = "5373141891321699093"     # ID для 🧮
+    # ============================================
+    
     markup.row(
-        KeyboardButton("💎 TON", style="primary"), 
-        KeyboardButton("💵 USDT", style="primary")
+        KeyboardButton("Купить TON", style="primary", icon_custom_emoji_id=EMOJI_TON),
+        KeyboardButton("Продать TON", style="primary", icon_custom_emoji_id=EMOJI_TON)
     )
-    # Второй ряд - тоже синий (primary)
     markup.row(
-        KeyboardButton("⭐️ Купить Stars", style="primary"), 
-        KeyboardButton("🌟 Продать Stars", style="primary")
+        KeyboardButton("Купить USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT),
+        KeyboardButton("Продать USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT)
     )
-    # Третий ряд - зеленый (success)
     markup.row(
-        KeyboardButton("👤 Профиль", style="success"), 
-        KeyboardButton("✨ Отзывы", style="success")
+        KeyboardButton("Купить Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_BUY),
+        KeyboardButton("Продать Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_SELL)
     )
-    # Четвертый ряд - тоже зеленый (success)
     markup.row(
-        KeyboardButton("🛠 Поддержка", style="success"), 
-        KeyboardButton("🧮 Калькулятор", style="success")
+        KeyboardButton("Профиль", style="success", icon_custom_emoji_id=EMOJI_PROFILE),
+        KeyboardButton("Отзывы", style="success", icon_custom_emoji_id=EMOJI_REVIEWS)
+    )
+    markup.row(
+        KeyboardButton("Поддержка", style="success", icon_custom_emoji_id=EMOJI_SUPPORT),
+        KeyboardButton("Калькулятор", style="success", icon_custom_emoji_id=EMOJI_CALC)
     )
     return markup
 
-# Не забудьте обновить MENU_BUTTONS, если это необходимо
+# Не забудьте обновить обработчики под новые названия кнопок
 MENU_BUTTONS = [
-    "💎 TON", "💵 USDT",
-    "⭐️ Купить Stars", "🌟 Продать Stars",
-    "👤 Профиль", "✨ Отзывы",
-    "🛠 Поддержка", "🧮 Калькулятор"
+    "Купить TON", "Продать TON",
+    "Купить USDT", "Продать USDT",
+    "Купить Stars", "Продать Stars",
+    "Профиль", "Отзывы",
+    "Поддержка", "Калькулятор"
 ]
 def generate_order_id():
     return random.randint(100000, 999999)
