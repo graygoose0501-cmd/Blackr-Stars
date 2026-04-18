@@ -8,9 +8,13 @@ TOKEN = os.environ.get("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== КУРСИ (міняй тут) =====
-TON_RATE = 72.3
-USDT_RATE = 41.5
-STARS_BUY_RATE = 0.76        # 100 Stars = 76 грн
+TON_BUY_RATE = 72.3
+TON_SELL_RATE = 70.0      # Курс продажи TON
+
+USDT_BUY_RATE = 41.5
+USDT_SELL_RATE = 40.0     # Курс продажи USDT
+
+STARS_BUY_RATE = 0.76     # 100 Stars = 76 грн
 STARS_SELL_RATE = 0.40
 STARS_MIN_SELL = 500
 # =============================
@@ -27,14 +31,14 @@ user_orders = {}
 
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 Купить TON"), KeyboardButton("💵 Купить USDT"))
+    markup.row(KeyboardButton("💎 TON"), KeyboardButton("💵 USDT"))
     markup.row(KeyboardButton("⭐️ Купить Stars"), KeyboardButton("🌟 Продать Stars"))
     markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("✨ Отзывы"))
     markup.row(KeyboardButton("🛠 Поддержка"), KeyboardButton("🧮 Калькулятор"))
     return markup
 
 MENU_BUTTONS = [
-    "💎 Купить TON", "💵 Купить USDT",
+    "💎 TON", "💵 USDT",
     "⭐️ Купить Stars", "🌟 Продать Stars",
     "👤 Профиль", "✨ Отзывы",
     "🛠 Поддержка", "🧮 Калькулятор"
@@ -43,9 +47,12 @@ MENU_BUTTONS = [
 def generate_order_id():
     return random.randint(100000, 999999)
 
-def confirm_button(order_id, user_id):
+def confirm_button(order_id, user_id, action_type="buy"):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_id}_{user_id}"))
+    if action_type == "buy":
+        markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_id}_{user_id}"))
+    else:
+        markup.add(InlineKeyboardButton("✅ Подтвердить выплату", callback_data=f"confirm_sell_{order_id}_{user_id}"))
     return markup
 
 def confirm_sell_stars_button(order_id, user_id):
@@ -56,6 +63,22 @@ def confirm_sell_stars_button(order_id, user_id):
 def leave_comment_button():
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("💬 Оставить отзыв", callback_data="leave_comment"))
+    return markup
+
+def ton_usdt_inline_menu():
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("💎 Купить TON", callback_data="ton_buy"),
+        InlineKeyboardButton("💸 Продать TON", callback_data="ton_sell")
+    )
+    return markup
+
+def usdt_inline_menu():
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("💵 Купить USDT", callback_data="usdt_buy"),
+        InlineKeyboardButton("💸 Продать USDT", callback_data="usdt_sell")
+    )
     return markup
 
 def stars_for_who_buttons():
@@ -97,13 +120,39 @@ def start(message):
         reply_markup=main_menu()
     )
 
-# ========== TON ==========
+# ========== TON & USDT MAIN HANDLER ==========
 
-@bot.message_handler(func=lambda m: m.text == "💎 Купить TON")
-def buy_ton(message):
-    msg = bot.send_message(
+@bot.message_handler(func=lambda m: m.text == "💎 TON")
+def ton_menu(message):
+    bot.send_message(
         message.chat.id,
-        f"💎 Курс TON: {TON_RATE} грн\n\nВведите количество TON для заказа:",
+        f"💎 *TON*\n\n"
+        f"Курс покупки: *{TON_BUY_RATE} грн*\n"
+        f"Курс продажи: *{TON_SELL_RATE} грн*\n\n"
+        f"Выберите действие:",
+        reply_markup=ton_usdt_inline_menu(),
+        parse_mode="Markdown"
+    )
+
+@bot.message_handler(func=lambda m: m.text == "💵 USDT")
+def usdt_menu(message):
+    bot.send_message(
+        message.chat.id,
+        f"💵 *USDT*\n\n"
+        f"Курс покупки: *{USDT_BUY_RATE} грн*\n"
+        f"Курс продажи: *{USDT_SELL_RATE} грн*\n\n"
+        f"Выберите действие:",
+        reply_markup=usdt_inline_menu(),
+        parse_mode="Markdown"
+    )
+
+# ========== TON BUY ==========
+@bot.callback_query_handler(func=lambda call: call.data == "ton_buy")
+def buy_ton_start(call):
+    bot.answer_callback_query(call.id)
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"💎 Курс TON: {TON_BUY_RATE} грн\n\nВведите количество TON для заказа:",
         reply_markup=main_menu()
     )
     bot.register_next_step_handler(msg, process_ton_amount)
@@ -114,7 +163,7 @@ def process_ton_amount(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * TON_RATE, 2)
+        total = round(amount * TON_BUY_RATE, 2)
         msg = bot.send_message(
             message.chat.id,
             f"✅ Количество: {amount} TON\n💰 Сумма: {total} грн\n\n"
@@ -135,7 +184,7 @@ def process_ton_wallet(message, amount, total):
     now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     user_orders[message.chat.id] = {
         "order_id": order_id, "amount": amount, "total": total,
-        "wallet": wallet, "crypto": "TON", "date": now
+        "wallet": wallet, "crypto": "TON", "date": now, "type": "buy"
     }
     bot.send_message(
         message.chat.id,
@@ -155,13 +204,12 @@ def process_ton_wallet(message, amount, total):
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id}*\n"
+            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id} (ПОКУПКА TON)*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💎 Криптовалюта: TON\n"
-            f"💰 Количество: *{amount} TON*\n"
+            f"💎 Количество: *{amount} TON*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -169,13 +217,79 @@ def process_ton_wallet(message, amount, total):
             parse_mode="Markdown"
         )
 
-# ========== USDT ==========
-
-@bot.message_handler(func=lambda m: m.text == "💵 Купить USDT")
-def buy_usdt(message):
+# ========== TON SELL ==========
+@bot.callback_query_handler(func=lambda call: call.data == "ton_sell")
+def sell_ton_start(call):
+    bot.answer_callback_query(call.id)
     msg = bot.send_message(
+        call.message.chat.id,
+        f"💸 *Продажа TON*\nКурс: {TON_SELL_RATE} грн\n\n"
+        f"Введите количество TON для продажи:",
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, process_sell_ton_amount)
+
+def process_sell_ton_amount(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount * TON_SELL_RATE, 2)
+        msg = bot.send_message(
+            message.chat.id,
+            f"✅ *{amount} TON = {total} грн*\n\n💳 Введите номер карты для выплаты:",
+            reply_markup=main_menu(), parse_mode="Markdown"
+        )
+        bot.register_next_step_handler(msg, process_sell_ton_card, amount, total)
+    except (ValueError, AttributeError):
+        msg = bot.send_message(message.chat.id, "❌ Введите число!", reply_markup=main_menu())
+        bot.register_next_step_handler(msg, process_sell_ton_amount)
+
+def process_sell_ton_card(message, amount, total):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    card = message.text
+    order_id = generate_order_id()
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "TON", "type": "sell"}
+    
+    bot.send_message(
         message.chat.id,
-        f"💵 Курс USDT: {USDT_RATE} грн\n\nВведите количество USDT для заказа:",
+        f"✅ *Заявка на продажу TON принята!*\n\n"
+        f"💰 Вы получите: *{total} грн*\n"
+        f"💳 На карту: `{card}`\n"
+        f"📞 Номер заказа: *#{order_id}*\n\n"
+        f"⏳ Ожидайте подтверждения.",
+        reply_markup=main_menu(), parse_mode="Markdown"
+    )
+    
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"🔄 *ПРОДАЖА TON #{order_id}*\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Пользователь: {username}\n"
+            f"🆔 ID: `{message.chat.id}`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💎 Продаёт: *{amount} TON*\n"
+            f"💰 К выплате: *{total} грн*\n"
+            f"💳 Карта: `{card}`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ Статус: Ожидает выплаты",
+            parse_mode="Markdown",
+            reply_markup=confirm_button(order_id, message.chat.id, action_type="sell")
+        )
+
+# ========== USDT BUY ==========
+@bot.callback_query_handler(func=lambda call: call.data == "usdt_buy")
+def buy_usdt_start(call):
+    bot.answer_callback_query(call.id)
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"💵 Курс USDT: {USDT_BUY_RATE} грн\n\nВведите количество USDT для заказа:",
         reply_markup=main_menu()
     )
     bot.register_next_step_handler(msg, process_usdt_amount)
@@ -186,7 +300,7 @@ def process_usdt_amount(message):
         return
     try:
         amount = float(message.text.replace(",", "."))
-        total = round(amount * USDT_RATE, 2)
+        total = round(amount * USDT_BUY_RATE, 2)
         msg = bot.send_message(
             message.chat.id,
             f"✅ Количество: {amount} USDT\n💰 Сумма: {total} грн\n\n"
@@ -209,7 +323,7 @@ def process_usdt_wallet(message, amount, total):
     now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     user_orders[message.chat.id] = {
         "order_id": order_id, "amount": amount, "total": total,
-        "wallet": wallet, "crypto": "USDT", "date": now
+        "wallet": wallet, "crypto": "USDT", "date": now, "type": "buy"
     }
     bot.send_message(
         message.chat.id,
@@ -229,13 +343,12 @@ def process_usdt_wallet(message, amount, total):
     for admin_id in ADMINS:
         bot.send_message(
             admin_id,
-            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id}*\n"
+            f"🆕 *НОВЫЙ ЗАКАЗ #{order_id} (ПОКУПКА USDT)*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"👤 Пользователь: {username}\n"
             f"🆔 ID: `{message.chat.id}`\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💵 Криптовалюта: USDT\n"
-            f"💰 Количество: *{amount} USDT*\n"
+            f"💵 Количество: *{amount} USDT*\n"
             f"💵 К оплате: *{total} грн*\n"
             f"👛 Кошелёк: `{wallet}`\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -243,7 +356,74 @@ def process_usdt_wallet(message, amount, total):
             parse_mode="Markdown"
         )
 
-# ========== STARS КУПИТЬ ==========
+# ========== USDT SELL ==========
+@bot.callback_query_handler(func=lambda call: call.data == "usdt_sell")
+def sell_usdt_start(call):
+    bot.answer_callback_query(call.id)
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"💸 *Продажа USDT*\nКурс: {USDT_SELL_RATE} грн\n\n"
+        f"Введите количество USDT для продажи:",
+        reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, process_sell_usdt_amount)
+
+def process_sell_usdt_amount(message):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    try:
+        amount = float(message.text.replace(",", "."))
+        total = round(amount * USDT_SELL_RATE, 2)
+        msg = bot.send_message(
+            message.chat.id,
+            f"✅ *{amount} USDT = {total} грн*\n\n💳 Введите номер карты для выплаты:",
+            reply_markup=main_menu(), parse_mode="Markdown"
+        )
+        bot.register_next_step_handler(msg, process_sell_usdt_card, amount, total)
+    except (ValueError, AttributeError):
+        msg = bot.send_message(message.chat.id, "❌ Введите число!", reply_markup=main_menu())
+        bot.register_next_step_handler(msg, process_sell_usdt_amount)
+
+def process_sell_usdt_card(message, amount, total):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    card = message.text
+    order_id = generate_order_id()
+    user_orders[message.chat.id] = {"order_id": order_id, "amount": amount, "total": total, "crypto": "USDT", "type": "sell"}
+    
+    bot.send_message(
+        message.chat.id,
+        f"✅ *Заявка на продажу USDT принята!*\n\n"
+        f"💰 Вы получите: *{total} грн*\n"
+        f"💳 На карту: `{card}`\n"
+        f"📞 Номер заказа: *#{order_id}*\n\n"
+        f"⏳ Ожидайте подтверждения.",
+        reply_markup=main_menu(), parse_mode="Markdown"
+    )
+    
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {message.chat.id}"
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"🔄 *ПРОДАЖА USDT #{order_id}*\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Пользователь: {username}\n"
+            f"🆔 ID: `{message.chat.id}`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💵 Продаёт: *{amount} USDT*\n"
+            f"💰 К выплате: *{total} грн*\n"
+            f"💳 Карта: `{card}`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ Статус: Ожидает выплаты",
+            parse_mode="Markdown",
+            reply_markup=confirm_button(order_id, message.chat.id, action_type="sell")
+        )
+
+# ========== STARS (Без изменений) ==========
+# ... (весь код Stars остаётся как был) ...
 
 @bot.message_handler(func=lambda m: m.text == "⭐️ Купить Stars")
 def buy_stars(message):
@@ -339,8 +519,6 @@ def finish_stars_order(message, amount, stars_type, username_target):
             f"⏳ Статус: Ожидает оплаты",
             parse_mode="Markdown"
         )
-
-# ========== STARS ПРОДАТЬ ==========
 
 @bot.message_handler(func=lambda m: m.text == "🌟 Продать Stars")
 def sell_stars(message):
@@ -474,10 +652,10 @@ def handle_receipt(message):
                     f"🆔 ID: {message.chat.id}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"✅ Клиент отправил квитанцию",
-            reply_markup=confirm_button(order_id, message.chat.id)
+            reply_markup=confirm_button(order_id, message.chat.id, action_type="buy")
         )
 
-# ========== CALLBACK: ПОДТВЕРЖДЕНИЕ ПОКУПКИ ==========
+# ========== CALLBACK: ПОДТВЕРЖДЕНИЕ ПОКУПКИ / ПРОДАЖИ ==========
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_") and not call.data.startswith("confirm_sell_stars_"))
 def confirm_order(call):
@@ -485,22 +663,38 @@ def confirm_order(call):
         bot.answer_callback_query(call.id, "❌ Нет доступа!")
         return
     parts = call.data.split("_")
-    order_id = parts[1]
-    user_id = int(parts[2])
-    order_data = user_orders.get(user_id)
-    if order_data:
-        crypto = order_data["crypto"]
-        emoji = "💎" if crypto == "TON" else ("💵" if crypto == "USDT" else "⭐️")
+    
+    if parts[1] == "sell": # confirm_sell_12345_67890
+        order_id = parts[2]
+        user_id = int(parts[3])
+        # Уведомление о продаже
+        bot.send_message(
+            user_id,
+            f"✅ *Выплата произведена!*\n\n"
+            f"💰 Средства отправлены на вашу карту.\n"
+            f"💎 Спасибо, что выбрали нас! ❤️",
+            reply_markup=leave_comment_button(), parse_mode="Markdown"
+        )
+        bot.answer_callback_query(call.id, f"✅ Продажа #{order_id} подтверждена!")
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        bot.send_message(call.message.chat.id, f"✅ Продажа *#{order_id}* подтверждена, клиент уведомлён!", parse_mode="Markdown")
     else:
-        emoji, crypto = "💎", "криптовалюта"
-    bot.send_message(
-        user_id,
-        f"✅ *Готово!*\n{emoji} {crypto} уже на кошельке\n💎 Спасибо, что выбрали нас! ❤️",
-        reply_markup=leave_comment_button(), parse_mode="Markdown"
-    )
-    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-    bot.answer_callback_query(call.id, f"✅ Заказ #{order_id} подтверждён!")
-    bot.send_message(call.message.chat.id, f"✅ Заказ *#{order_id}* подтверждён, покупатель уведомлён!", parse_mode="Markdown")
+        order_id = parts[1]
+        user_id = int(parts[2])
+        order_data = user_orders.get(user_id)
+        if order_data:
+            crypto = order_data["crypto"]
+            emoji = "💎" if crypto == "TON" else ("💵" if crypto == "USDT" else "⭐️")
+        else:
+            emoji, crypto = "💎", "криптовалюта"
+        bot.send_message(
+            user_id,
+            f"✅ *Готово!*\n{emoji} {crypto} уже на кошельке\n💎 Спасибо, что выбрали нас! ❤️",
+            reply_markup=leave_comment_button(), parse_mode="Markdown"
+        )
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        bot.answer_callback_query(call.id, f"✅ Заказ #{order_id} подтверждён!")
+        bot.send_message(call.message.chat.id, f"✅ Заказ *#{order_id}* подтверждён, покупатель уведомлён!", parse_mode="Markdown")
 
 # ========== ОТЗЫВ ==========
 
@@ -545,10 +739,10 @@ def save_comment_photo(message):
 # ========== МЕНЮ ==========
 
 def handle_menu(message):
-    if message.text == "💎 Купить TON":
-        buy_ton(message)
-    elif message.text == "💵 Купить USDT":
-        buy_usdt(message)
+    if message.text == "💎 TON":
+        ton_menu(message)
+    elif message.text == "💵 USDT":
+        usdt_menu(message)
     elif message.text == "⭐️ Купить Stars":
         buy_stars(message)
     elif message.text == "🌟 Продать Stars":
