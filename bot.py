@@ -936,67 +936,40 @@ def skip_review_photo(call):
     if not review_data:
         bot.send_message(call.message.chat.id, "❌ Ошибка! Начните заново.", reply_markup=main_menu())
         return
-    save_comment_no_photo(call.message)
+    save_comment_no_photo(call.message.chat.id, call.from_user)
 
 def build_review_stats(user_id, order_data):
-    """Формирует строку статистики для отзыва на основе данных пользователя"""
+    """Формирует строку статистики для отзыва: текущий заказ + всего куплено"""
     ud = user_data.get(user_id, {})
-    bought_stars = ud.get("bought_stars", 0)
-    bought_ton = ud.get("bought_ton", 0.0)
-    bought_usdt = ud.get("bought_usdt", 0.0)
+    bought_stars_total = ud.get("bought_stars", 0)
+    bought_ton_total = ud.get("bought_ton", 0.0)
+    bought_usdt_total = ud.get("bought_usdt", 0.0)
 
     crypto = order_data.get("crypto", "")
     amount = order_data.get("amount", 0)
 
     lines = []
 
+    # Текущий заказ
     if crypto == "Stars":
         lines.append(f"⭐️ Куплено Stars: *{amount}*")
-        lines.append(f"⭐️ Куплено Stars всего: *{bought_stars}*")
     elif crypto == "TON":
         lines.append(f"💎 Куплено TON: *{amount}*")
-        lines.append(f"💎 Куплено TON всего: *{bought_ton}*")
     elif crypto == "USDT":
         lines.append(f"💵 Куплено USDT: *{amount}*")
-        lines.append(f"💵 Куплено USDT всего: *{bought_usdt}*")
-    else:
-        if bought_stars > 0:
-            lines.append(f"⭐️ Куплено Stars всего: *{bought_stars}*")
-        if bought_ton > 0:
-            lines.append(f"💎 Куплено TON всего: *{bought_ton}*")
-        if bought_usdt > 0:
-            lines.append(f"💵 Куплено USDT всего: *{bought_usdt}*")
+
+    # Всего накопительно — всегда показываем все типы если > 0
+    if bought_stars_total > 0:
+        lines.append(f"⭐️ Куплено Stars всего: *{bought_stars_total}*")
+    if bought_ton_total > 0:
+        lines.append(f"💎 Куплено TON всего: *{bought_ton_total}*")
+    if bought_usdt_total > 0:
+        lines.append(f"💵 Куплено USDT всего: *{bought_usdt_total}*")
 
     return "\n".join(lines) if lines else "—"
 
-def save_comment_no_photo(message):
-    """Сохранение отзыва без фото"""
-    global review_counter
-    review_data = pending_reviews.get(message.chat.id, {})
-    if not review_data:
-        bot.send_message(message.chat.id, "❌ Ошибка! Начните заново.", reply_markup=main_menu())
-        return
-
-    rating = review_data.get("rating", 5)
-    comment = review_data.get("comment", "")
-    order_number_str = review_data.get("order_number", "")
-    user_name = message.from_user.first_name or "Клиент"
-    date = format_date_only()
-
-    if order_number_str:
-        reviewed_orders.add(order_number_str)
-
-    review_number = review_counter
-    review_counter += 1
-
-    stars_display = "⭐️" * rating
-    order_data = user_orders.get(message.chat.id, {})
-    stats = build_review_stats(message.chat.id, order_data)
-
-    username_display = message.from_user.username
-    client_name = f"@{username_display}" if username_display else user_name
-
-    caption = (
+def build_caption(review_number, client_name, comment, date, stars_display, stats):
+    return (
         f"📊 *Отзыв №{review_number}*\n"
         f"🆔 Клиент: {client_name}\n"
         f"📝 Комментарий: {comment}\n"
@@ -1006,13 +979,42 @@ def save_comment_no_photo(message):
         f"🎯 FluxStar Bot — ваш надёжный партнёр! 🚀"
     )
 
-    bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
+def save_comment_no_photo(chat_id, user_obj):
+    """Сохранение отзыва без фото"""
+    global review_counter
+    review_data = pending_reviews.get(chat_id, {})
+    if not review_data:
+        bot.send_message(chat_id, "❌ Ошибка! Начните заново.", reply_markup=main_menu())
+        return
+
+    rating = review_data.get("rating", 5)
+    comment = review_data.get("comment", "")
+    order_number_str = review_data.get("order_number", "")
+    user_name = user_obj.first_name or "Клиент"
+    date = format_date_only()
+
+    if order_number_str:
+        reviewed_orders.add(order_number_str)
+
+    review_number = review_counter
+    review_counter += 1
+
+    stars_display = "⭐️" * rating
+    order_data = user_orders.get(chat_id, {})
+    stats = build_review_stats(chat_id, order_data)
+
+    username_display = user_obj.username
+    client_name = username_display if username_display else user_name
+
+    caption = build_caption(review_number, client_name, comment, date, stars_display, stats)
+
+    bot.send_message(chat_id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
     bot.send_message(REVIEWS_CHANNEL_ID, caption, parse_mode="Markdown")
     for admin_id in ADMINS:
         bot.send_message(admin_id, f"💬 НОВЫЙ ОТЗЫВ\n{caption}", parse_mode="Markdown")
 
-    if message.chat.id in pending_reviews:
-        del pending_reviews[message.chat.id]
+    if chat_id in pending_reviews:
+        del pending_reviews[chat_id]
 
 def save_comment_photo(message):
     global review_counter
@@ -1038,17 +1040,9 @@ def save_comment_photo(message):
     stats = build_review_stats(message.chat.id, order_data)
 
     username_display = message.from_user.username
-    client_name = f"@{username_display}" if username_display else user_name
+    client_name = username_display if username_display else user_name
 
-    caption = (
-        f"📊 *Отзыв №{review_number}*\n"
-        f"🆔 Клиент: {client_name}\n"
-        f"📝 Комментарий: {comment}\n"
-        f"📅 Дата: {date}\n"
-        f"🌟 Оценка: {stars_display}\n\n"
-        f"📈 Статистика покупок:\n{stats}\n\n"
-        f"🎯 FluxStar Bot — ваш надёжный партнёр! 🚀"
-    )
+    caption = build_caption(review_number, client_name, comment, date, stars_display, stats)
 
     bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
     bot.send_photo(REVIEWS_CHANNEL_ID, photo, caption=caption, parse_mode="Markdown")
