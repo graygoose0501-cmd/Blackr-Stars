@@ -124,9 +124,14 @@ def handle_menu(message):
 def confirm_button(order_number, user_id, action_type="buy", order_info=""):
     markup = InlineKeyboardMarkup()
     if action_type == "buy":
-        markup.add(InlineKeyboardButton("✅ Подтвердить заказ", callback_data=f"confirm_{order_number}_{user_id}"))
+        markup.add(InlineKeyboardButton("✅ Подтвердить оплату", callback_data=f"confirm_payment_{order_number}_{user_id}"))
     else:
         markup.add(InlineKeyboardButton("✅ Подтвердить выплату", callback_data=f"confirm_sell_{order_number}_{user_id}"))
+    return markup
+
+def confirm_delivery_button(order_number, user_id):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🚀 Подтвердить выдачу", callback_data=f"confirm_{order_number}_{user_id}"))
     return markup
 
 def confirm_sell_stars_button(order_number, user_id):
@@ -722,7 +727,36 @@ def confirm_sell_stars_order(call):
         f"✅ Продажа Stars *#{order_number}* подтверждена!\n"
         f"⭐️ *{amount} Stars* | 💰 *{total} грн*", parse_mode="Markdown")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_") and not call.data.startswith("confirm_sell_stars_"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_payment_"))
+def confirm_payment(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!"); return
+    parts = call.data.split("_")
+    order_number = parts[2]
+    user_id = int(parts[3])
+
+    order_data = user_orders.get(user_id, {})
+    amount = order_data.get("amount", "?")
+    total = order_data.get("total", "?")
+    crypto = order_data.get("crypto", "?")
+
+    # Уведомляем пользователя что оплата прошла
+    bot.send_message(user_id,
+        f"✅ *Оплата прошла успешно!*\n\n"
+        f"⏳ Ожидайте выдачи вашего заказа.",
+        parse_mode="Markdown")
+
+    # Убираем кнопку оплаты и отправляем админу кнопку выдачи
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.answer_callback_query(call.id, f"✅ Оплата #{order_number} подтверждена!")
+    bot.send_message(call.message.chat.id,
+        f"✅ Оплата *#{order_number}* подтверждена!\n"
+        f"{'⭐️' if crypto == 'Stars' else ('💎' if crypto == 'TON' else '💵')} *{amount} {crypto}* | 💰 *{total} грн*\n\n"
+        f"Теперь подтвердите выдачу:",
+        reply_markup=confirm_delivery_button(order_number, user_id),
+        parse_mode="Markdown")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_") and not call.data.startswith("confirm_sell_stars_") and not call.data.startswith("confirm_sell_") and not call.data.startswith("confirm_payment_") and not call.data.startswith("confirm_ref_"))
 def confirm_order(call):
     if call.from_user.id not in ADMINS:
         bot.answer_callback_query(call.id, "❌ Нет доступа!"); return
@@ -745,6 +779,7 @@ def confirm_order(call):
             f"✅ Продажа *#{order_number}* подтверждена!\n"
             f"💎 *{amount} {crypto}* | 💰 *{total} грн*", parse_mode="Markdown")
     else:
+        # Шаг 2 — выдача товара
         order_number = parts[1]
         user_id = int(parts[2])
         order_data = user_orders.get(user_id)
@@ -785,9 +820,9 @@ def confirm_order(call):
         bot.send_message(user_id, done_text,
             reply_markup=leave_comment_button(order_number), parse_mode="Markdown")
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        bot.answer_callback_query(call.id, f"✅ Заказ #{order_number} подтверждён!")
+        bot.answer_callback_query(call.id, f"✅ Выдача #{order_number} подтверждена!")
         bot.send_message(call.message.chat.id,
-            f"✅ Заказ *#{order_number}* подтверждён!\n"
+            f"🚀 Выдача *#{order_number}* подтверждена!\n"
             f"{emoji} *{amount} {crypto}* | 💰 *{total} грн*", parse_mode="Markdown")
 
 # ========== КВИТАНЦИЯ ==========
@@ -873,7 +908,65 @@ def save_comment_text(message):
     review_data["comment"] = message.text
     review_data["status"] = "waiting_photo"
     pending_reviews[message.chat.id] = review_data
-    bot.send_message(message.chat.id, "📸 Теперь отправьте фото для отзыва:", reply_markup=main_menu())
+    skip_markup = InlineKeyboardMarkup()
+    skip_markup.add(InlineKeyboardButton("⏭ Пропустить фото", callback_data="skip_review_photo"))
+    bot.send_message(message.chat.id, "📸 Отправьте фото для отзыва или пропустите:", reply_markup=skip_markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "skip_review_photo")
+def skip_review_photo(call):
+    bot.answer_callback_query(call.id)
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    except:
+        pass
+    review_data = pending_reviews.get(call.message.chat.id, {})
+    if not review_data:
+        bot.send_message(call.message.chat.id, "❌ Ошибка! Начните заново.", reply_markup=main_menu())
+        return
+    save_comment_no_photo(call.message)
+
+def save_comment_no_photo(message):
+    """Сохранение отзыва без фото"""
+    global review_counter, total_stars_withdrawn
+    review_data = pending_reviews.get(message.chat.id, {})
+    if not review_data:
+        bot.send_message(message.chat.id, "❌ Ошибка! Начните заново.", reply_markup=main_menu())
+        return
+
+    rating = review_data.get("rating", 5)
+    comment = review_data.get("comment", "")
+    order_number_str = review_data.get("order_number", "")
+    user_name = message.from_user.first_name or "Клиент"
+    date = format_date_only()
+
+    if order_number_str:
+        reviewed_orders.add(order_number_str)
+
+    review_number = review_counter
+    review_counter += 1
+
+    stars_display = f"{'⭐️' * rating} ({rating}/5)"
+
+    order_data = user_orders.get(message.chat.id, {})
+    withdrawn_now = order_data.get("amount", 0) if order_data.get("crypto") == "Stars" else 0
+
+    caption = (
+        f"📊 *Відгук №{review_number}*\n\n"
+        f"🆔 Клиент: {user_name}\n"
+        f"📝 Коментарий: {comment}\n"
+        f"📅 Дата: {date}\n\n"
+        f"🌟 Оценка: {stars_display}\n\n"
+        f"💫 Выведено: {withdrawn_now} ⭐️\n"
+        f"📊 Всего выведено: {total_stars_withdrawn} ⭐️"
+    )
+
+    bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
+    bot.send_message(REVIEWS_CHANNEL_ID, caption, parse_mode="Markdown")
+    for admin_id in ADMINS:
+        bot.send_message(admin_id, f"💬 НОВЫЙ ОТЗЫВ\n{caption}", parse_mode="Markdown")
+
+    if message.chat.id in pending_reviews:
+        del pending_reviews[message.chat.id]
 
 def save_comment_photo(message):
     global review_counter, total_stars_withdrawn
