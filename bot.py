@@ -1454,4 +1454,520 @@ def process_calc_uah_to_stars(message):
         msg = bot.send_message(message.chat.id, "❌ Введите число!", reply_markup=main_menu())
         bot.register_next_step_handler(msg, process_calc_uah_to_stars)
 
+# ========== АДМИН-ПАНЕЛЬ ==========
+
+# Хранилище заблокированных пользователей
+banned_users = set()
+
+def is_user_banned(user_id):
+    return user_id in banned_users
+
+def admin_panel_keyboard():
+    """Клавиатура админ-панели"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("🚫 Заблокировать пользователя", callback_data="admin_ban"),
+        InlineKeyboardButton("✅ Разблокировать пользователя", callback_data="admin_unban"),
+        InlineKeyboardButton("📢 Рассылка всем пользователям", callback_data="admin_broadcast"),
+        InlineKeyboardButton("💬 Написать пользователю", callback_data="admin_message"),
+        InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
+        InlineKeyboardButton("❌ Закрыть", callback_data="admin_close")
+    )
+    return markup
+
+def admin_back_keyboard():
+    """Клавиатура возврата в админ-панель"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("◀️ Назад в админ-панель", callback_data="admin_back"))
+    return markup
+
+# Обработчик команды !admin
+@bot.message_handler(commands=['admin'])
+def admin_command(message):
+    if message.from_user.id not in ADMINS:
+        bot.send_message(message.chat.id, "❌ У вас нет доступа к админ-панели!")
+        return
+    
+    bot.send_message(
+        message.chat.id,
+        "🔐 *Админ-панель*\n\nВыберите действие:",
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# Обработчик текстового сообщения "!admin" (если без слеша)
+@bot.message_handler(func=lambda m: m.text == "!admin")
+def admin_text_command(message):
+    admin_command(message)
+
+# ========== БЛОКИРОВКА ПОЛЬЗОВАТЕЛЯ ==========
+
+admin_states = {}
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_ban")
+def admin_ban_start(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    admin_states[call.from_user.id] = {"action": "ban", "step": "waiting_id"}
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        "🚫 *Блокировка пользователя*\n\n"
+        "Введите ID пользователя для блокировки:\n"
+        "_(или перешлите сообщение от пользователя)_",
+        reply_markup=admin_back_keyboard(),
+        parse_mode="Markdown"
+    )
+    admin_states[call.from_user.id]["msg_id"] = msg.message_id
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_unban")
+def admin_unban_start(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    admin_states[call.from_user.id] = {"action": "unban", "step": "waiting_id"}
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        "✅ *Разблокировка пользователя*\n\n"
+        "Введите ID пользователя для разблокировки:",
+        reply_markup=admin_back_keyboard(),
+        parse_mode="Markdown"
+    )
+    admin_states[call.from_user.id]["msg_id"] = msg.message_id
+
+@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and 
+                     m.from_user.id in admin_states and 
+                     admin_states[m.from_user.id].get("step") == "waiting_id")
+def process_admin_user_id(message):
+    admin_id = message.from_user.id
+    state = admin_states[admin_id]
+    action = state["action"]
+    
+    # Пытаемся получить ID из текста или пересланного сообщения
+    user_id = None
+    if message.forward_from:
+        user_id = message.forward_from.id
+    elif message.text:
+        try:
+            user_id = int(message.text.strip())
+        except:
+            pass
+    
+    if not user_id:
+        msg = bot.send_message(
+            message.chat.id,
+            "❌ Не удалось определить ID пользователя!\n"
+            "Введите числовой ID или перешлите сообщение от пользователя:",
+            reply_markup=admin_back_keyboard()
+        )
+        admin_states[admin_id]["msg_id"] = msg.message_id
+        return
+    
+    if action == "ban":
+        if user_id in ADMINS:
+            bot.send_message(
+                message.chat.id,
+                "❌ *Невозможно заблокировать администратора!*",
+                reply_markup=admin_panel_keyboard(),
+                parse_mode="Markdown"
+            )
+        elif user_id in banned_users:
+            bot.send_message(
+                message.chat.id,
+                f"⚠️ *Пользователь `{user_id}` уже заблокирован!*",
+                reply_markup=admin_panel_keyboard(),
+                parse_mode="Markdown"
+            )
+        else:
+            banned_users.add(user_id)
+            bot.send_message(
+                message.chat.id,
+                f"✅ *Пользователь `{user_id}` заблокирован!*",
+                reply_markup=admin_panel_keyboard(),
+                parse_mode="Markdown"
+            )
+            # Пытаемся уведомить пользователя
+            try:
+                bot.send_message(
+                    user_id,
+                    "🚫 *Ваш аккаунт заблокирован администратором.*\n\n"
+                    "Для разблокировки обратитесь в поддержку.",
+                    parse_mode="Markdown"
+                )
+            except:
+                pass
+    
+    elif action == "unban":
+        if user_id in banned_users:
+            banned_users.remove(user_id)
+            bot.send_message(
+                message.chat.id,
+                f"✅ *Пользователь `{user_id}` разблокирован!*",
+                reply_markup=admin_panel_keyboard(),
+                parse_mode="Markdown"
+            )
+            # Пытаемся уведомить пользователя
+            try:
+                bot.send_message(
+                    user_id,
+                    "✅ *Ваш аккаунт разблокирован!*\n\n"
+                    "Теперь вы снова можете пользоваться ботом.",
+                    parse_mode="Markdown"
+                )
+            except:
+                pass
+        else:
+            bot.send_message(
+                message.chat.id,
+                f"⚠️ *Пользователь `{user_id}` не заблокирован!*",
+                reply_markup=admin_panel_keyboard(),
+                parse_mode="Markdown"
+            )
+    
+    del admin_states[admin_id]
+
+# Проверка блокировки перед обработкой команд
+@bot.message_handler(func=lambda m: is_user_banned(m.from_user.id))
+def blocked_user_handler(message):
+    bot.send_message(
+        message.chat.id,
+        "🚫 *Ваш аккаунт заблокирован.*\n\n"
+        "Для разблокировки обратитесь в поддержку.",
+        parse_mode="Markdown"
+    )
+
+# ========== РАССЫЛКА ==========
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast")
+def admin_broadcast_start(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    admin_states[call.from_user.id] = {"action": "broadcast", "step": "waiting_message"}
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        "📢 *Рассылка всем пользователям*\n\n"
+        "Отправьте сообщение для рассылки (текст, фото, видео или документ):",
+        reply_markup=admin_back_keyboard(),
+        parse_mode="Markdown"
+    )
+    admin_states[call.from_user.id]["msg_id"] = msg.message_id
+
+@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and 
+                     m.from_user.id in admin_states and 
+                     admin_states[m.from_user.id].get("action") == "broadcast" and
+                     admin_states[m.from_user.id].get("step") == "waiting_message",
+                     content_types=['text', 'photo', 'video', 'document'])
+def process_broadcast_message(message):
+    admin_id = message.from_user.id
+    
+    # Получаем список всех пользователей
+    all_users = list(user_data.keys())
+    
+    success_count = 0
+    fail_count = 0
+    
+    bot.send_message(
+        message.chat.id,
+        f"📢 *Начинаю рассылку...*\n\n"
+        f"👥 Всего пользователей: *{len(all_users)}*",
+        parse_mode="Markdown"
+    )
+    
+    for user_id in all_users:
+        if user_id in banned_users:
+            continue
+        try:
+            if message.content_type == 'text':
+                bot.send_message(
+                    user_id,
+                    f"📢 *Рассылка*\n\n{message.text}",
+                    parse_mode="Markdown"
+                )
+            elif message.content_type == 'photo':
+                bot.send_photo(
+                    user_id,
+                    message.photo[-1].file_id,
+                    caption=f"📢 *Рассылка*\n\n{message.caption or ''}",
+                    parse_mode="Markdown"
+                )
+            elif message.content_type == 'video':
+                bot.send_video(
+                    user_id,
+                    message.video.file_id,
+                    caption=f"📢 *Рассылка*\n\n{message.caption or ''}",
+                    parse_mode="Markdown"
+                )
+            elif message.content_type == 'document':
+                bot.send_document(
+                    user_id,
+                    message.document.file_id,
+                    caption=f"📢 *Рассылка*\n\n{message.caption or ''}",
+                    parse_mode="Markdown"
+                )
+            success_count += 1
+        except Exception as e:
+            fail_count += 1
+    
+    bot.send_message(
+        message.chat.id,
+        f"✅ *Рассылка завершена!*\n\n"
+        f"📨 Успешно отправлено: *{success_count}*\n"
+        f"❌ Ошибок: *{fail_count}*",
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="Markdown"
+    )
+    
+    del admin_states[admin_id]
+
+# ========== НАПИСАТЬ ПОЛЬЗОВАТЕЛЮ ==========
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_message")
+def admin_message_start(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    admin_states[call.from_user.id] = {"action": "message", "step": "waiting_id"}
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        "💬 *Написать пользователю*\n\n"
+        "Введите ID пользователя:\n"
+        "_(или перешлите сообщение от пользователя)_",
+        reply_markup=admin_back_keyboard(),
+        parse_mode="Markdown"
+    )
+    admin_states[call.from_user.id]["msg_id"] = msg.message_id
+
+@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and 
+                     m.from_user.id in admin_states and 
+                     admin_states[m.from_user.id].get("action") == "message" and
+                     admin_states[m.from_user.id].get("step") == "waiting_id")
+def process_message_user_id(message):
+    admin_id = message.from_user.id
+    state = admin_states[admin_id]
+    
+    user_id = None
+    if message.forward_from:
+        user_id = message.forward_from.id
+    elif message.text:
+        try:
+            user_id = int(message.text.strip())
+        except:
+            pass
+    
+    if not user_id:
+        msg = bot.send_message(
+            message.chat.id,
+            "❌ Не удалось определить ID пользователя!\n"
+            "Введите числовой ID или перешлите сообщение от пользователя:",
+            reply_markup=admin_back_keyboard()
+        )
+        admin_states[admin_id]["msg_id"] = msg.message_id
+        return
+    
+    state["target_user_id"] = user_id
+    state["step"] = "waiting_message"
+    admin_states[admin_id] = state
+    
+    # Получаем информацию о пользователе
+    user_info = user_data.get(user_id, {})
+    reg_date = user_info.get("reg_date", "неизвестно")
+    bought_stars = user_info.get("bought_stars", 0)
+    bought_ton = user_info.get("bought_ton", 0)
+    bought_usdt = user_info.get("bought_usdt", 0)
+    is_banned = "🚫 Да" if user_id in banned_users else "✅ Нет"
+    
+    msg = bot.send_message(
+        message.chat.id,
+        f"💬 *Написать пользователю*\n\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"📅 Регистрация: {reg_date}\n"
+        f"🚫 Заблокирован: {is_banned}\n"
+        f"⭐️ Куплено Stars: {bought_stars}\n"
+        f"💎 Куплено TON: {bought_ton}\n"
+        f"💵 Куплено USDT: {bought_usdt}\n\n"
+        f"Отправьте сообщение для пользователя:",
+        reply_markup=admin_back_keyboard(),
+        parse_mode="Markdown"
+    )
+    admin_states[admin_id]["msg_id"] = msg.message_id
+
+@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and 
+                     m.from_user.id in admin_states and 
+                     admin_states[m.from_user.id].get("action") == "message" and
+                     admin_states[m.from_user.id].get("step") == "waiting_message",
+                     content_types=['text', 'photo', 'video', 'document'])
+def process_admin_user_message(message):
+    admin_id = message.from_user.id
+    state = admin_states[admin_id]
+    user_id = state["target_user_id"]
+    
+    try:
+        if message.content_type == 'text':
+            bot.send_message(
+                user_id,
+                f"💬 *Сообщение от администратора*\n\n{message.text}",
+                parse_mode="Markdown"
+            )
+        elif message.content_type == 'photo':
+            bot.send_photo(
+                user_id,
+                message.photo[-1].file_id,
+                caption=f"💬 *Сообщение от администратора*\n\n{message.caption or ''}",
+                parse_mode="Markdown"
+            )
+        elif message.content_type == 'video':
+            bot.send_video(
+                user_id,
+                message.video.file_id,
+                caption=f"💬 *Сообщение от администратора*\n\n{message.caption or ''}",
+                parse_mode="Markdown"
+            )
+        elif message.content_type == 'document':
+            bot.send_document(
+                user_id,
+                message.document.file_id,
+                caption=f"💬 *Сообщение от администратора*\n\n{message.caption or ''}",
+                parse_mode="Markdown"
+            )
+        
+        bot.send_message(
+            message.chat.id,
+            f"✅ *Сообщение отправлено пользователю `{user_id}`!*",
+            reply_markup=admin_panel_keyboard(),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"❌ *Ошибка отправки сообщения!*\n\n"
+            f"Возможно, пользователь заблокировал бота.\n"
+            f"Ошибка: {str(e)[:100]}",
+            reply_markup=admin_panel_keyboard(),
+            parse_mode="Markdown"
+        )
+    
+    del admin_states[admin_id]
+
+# ========== СТАТИСТИКА ==========
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_stats")
+def admin_stats(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    
+    total_users = len(user_data)
+    active_today = 0  # Можно добавить логику
+    
+    total_stars_bought = sum(ud.get("bought_stars", 0) for ud in user_data.values())
+    total_ton_bought = sum(ud.get("bought_ton", 0) for ud in user_data.values())
+    total_usdt_bought = sum(ud.get("bought_usdt", 0) for ud in user_data.values())
+    
+    total_referrals = sum(len(ud.get("referrals", [])) for ud in user_data.values())
+    banned_count = len(banned_users)
+    
+    # Топ пользователей
+    top_users = sorted(
+        [(uid, ud.get("bought_stars", 0)) for uid, ud in user_data.items()],
+        key=lambda x: x[1],
+        reverse=True
+    )[:5]
+    
+    top_text = ""
+    for i, (uid, stars) in enumerate(top_users, 1):
+        if stars > 0:
+            top_text += f"{i}. `{uid}` — *{stars} ⭐️*\n"
+    
+    if not top_text:
+        top_text = "Пока нет данных"
+    
+    stats_text = (
+        f"📊 *СТАТИСТИКА БОТА*\n\n"
+        f"👥 *Пользователи:*\n"
+        f"├ Всего: *{total_users}*\n"
+        f"├ Заблокировано: *{banned_count}*\n"
+        f"└ Рефералов: *{total_referrals}*\n\n"
+        f"💰 *Продажи:*\n"
+        f"├ ⭐️ Stars: *{total_stars_bought}* шт\n"
+        f"├ 💎 TON: *{total_ton_bought}*\n"
+        f"└ 💵 USDT: *{total_usdt_bought}*\n\n"
+        f"📝 *Отзывов:* *{review_counter - 3761}*\n"
+        f"📦 *Заказов:* *{order_counter - 1}*\n"
+        f"💫 *Выведено Stars:* *{total_stars_withdrawn}*\n\n"
+        f"🏆 *Топ-5 по Stars:*\n{top_text}"
+    )
+    
+    bot.send_message(
+        call.message.chat.id,
+        stats_text,
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ========== НАВИГАЦИЯ ==========
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_back")
+def admin_back(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    
+    if call.from_user.id in admin_states:
+        del admin_states[call.from_user.id]
+    
+    try:
+        bot.edit_message_text(
+            "🔐 *Админ-панель*\n\nВыберите действие:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=admin_panel_keyboard(),
+            parse_mode="Markdown"
+        )
+    except:
+        bot.send_message(
+            call.message.chat.id,
+            "🔐 *Админ-панель*\n\nВыберите действие:",
+            reply_markup=admin_panel_keyboard(),
+            parse_mode="Markdown"
+        )
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_close")
+def admin_close(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    
+    bot.answer_callback_query(call.id)
+    
+    if call.from_user.id in admin_states:
+        del admin_states[call.from_user.id]
+    
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except:
+        pass
+    
+    bot.send_message(
+        call.message.chat.id,
+        "✅ Админ-панель закрыта.",
+        reply_markup=main_menu()
+    )
+
 bot.infinity_polling()
