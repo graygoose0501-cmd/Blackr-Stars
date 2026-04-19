@@ -131,7 +131,6 @@ MENU_BUTTONS = [
     "Поддержка", "Калькулятор"
 ]
 
-
 def handle_menu(message):
     t = message.text
     if t == "💎 TON": ton_menu(message)
@@ -163,9 +162,9 @@ def leave_comment_button(order_number):
     return markup
 
 def rating_keyboard():
-    markup = InlineKeyboardMarkup(row_width=5)
-    buttons = [InlineKeyboardButton(f"{'⭐️' * i}", callback_data=f"rating_{i}") for i in range(1, 6)]
-    markup.add(*buttons)
+    markup = InlineKeyboardMarkup(row_width=1)
+    for i in range(1, 6):
+        markup.add(InlineKeyboardButton(f"{'⭐️' * i}", callback_data=f"rating_{i}"))
     return markup
 
 def ton_inline_menu():
@@ -855,7 +854,6 @@ def handle_receipt(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("leave_comment_"))
 def leave_comment_cb(call):
     bot.answer_callback_query(call.id)
-    # Извлекаем order_number из callback_data
     order_number_str = call.data.split("leave_comment_")[1]
 
     # Проверяем: уже оставлял отзыв к этому заказу?
@@ -864,6 +862,12 @@ def leave_comment_cb(call):
             "❌ *Вы уже оставили отзыв к этому заказу.*\n\nОтзыв можно оставить только один раз.",
             parse_mode="Markdown")
         return
+
+    # Убираем кнопку с сообщения сразу после нажатия
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    except:
+        pass
 
     pending_reviews[call.message.chat.id] = {
         "status": "waiting_rating",
@@ -913,10 +917,7 @@ def save_comment_photo(message):
     review_number = review_counter
     review_counter += 1
 
-    stars_display = "\n".join(
-        f"{'⭐️' * i}  ✅" if i == rating else f"{'⭐️' * i}"
-        for i in range(1, 6)
-    )
+    stars_display = f"{'⭐️' * rating} ({rating}/5)"
 
     order_data = user_orders.get(message.chat.id, {})
     withdrawn_now = order_data.get("amount", 0) if order_data.get("crypto") == "Stars" else 0
