@@ -6,7 +6,7 @@ import pytz
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
-BOT_USERNAME = "YourBotUsername"  # ← замени на юзернейм бота без @
+BOT_USERNAME = "BlackrStars_Bot"  # ← замени на юзернейм бота без @
 
 bot = telebot.TeleBot(TOKEN)
 
