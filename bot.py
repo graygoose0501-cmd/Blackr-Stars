@@ -146,8 +146,13 @@ def leave_comment_button():
 
 def rating_keyboard():
     markup = InlineKeyboardMarkup(row_width=5)
-    buttons = [InlineKeyboardButton(f"{'⭐️' * i}", callback_data=f"rating_{i}") for i in range(1, 6)]
-    markup.add(*buttons)
+    markup.add(
+        InlineKeyboardButton("⭐1", callback_data="rating_1"),
+        InlineKeyboardButton("⭐2", callback_data="rating_2"),
+        InlineKeyboardButton("⭐3", callback_data="rating_3"),
+        InlineKeyboardButton("⭐4", callback_data="rating_4"),
+        InlineKeyboardButton("⭐5", callback_data="rating_5"),
+    )
     return markup
 
 def ton_inline_menu():
@@ -792,9 +797,9 @@ def leave_comment_cb(call):
     bot.answer_callback_query(call.id)
     pending_reviews[call.message.chat.id] = {"status": "waiting_rating"}
     bot.send_message(call.message.chat.id,
-        "🌟 *Сколько вы хотите поставить звёзд?*",
-        reply_markup=rating_keyboard(), parse_mode="Markdown")
-
+    "⭐️ *Выберите оценку:*",
+    reply_markup=rating_keyboard(), parse_mode="Markdown")
+    
 @bot.callback_query_handler(func=lambda call: call.data.startswith("rating_"))
 def rating_selected(call):
     bot.answer_callback_query(call.id)
