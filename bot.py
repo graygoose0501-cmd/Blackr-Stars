@@ -895,7 +895,149 @@ def profile(message):
         f"💵 Купленные USDT: *{bought_usdt}* 💸"
     )
 
-    bot.send_message(user_id, profile_text, reply_markup=main_menu(), parse_mode="Markdown")
+    profile_markup = InlineKeyboardMarkup()
+    profile_markup.add(InlineKeyboardButton("⭐️ Вывести реферальные звёзды", callback_data="ref_withdraw_menu"))
+    bot.send_message(user_id, profile_text, reply_markup=profile_markup, parse_mode="Markdown")
+
+# ========== ВЫВОД РЕФЕРАЛЬНЫХ ЗВЁЗД ==========
+
+def ref_withdraw_amounts_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("15 ⭐️", callback_data="ref_withdraw_15"),
+        InlineKeyboardButton("25 ⭐️", callback_data="ref_withdraw_25"),
+    )
+    markup.row(
+        InlineKeyboardButton("50 ⭐️", callback_data="ref_withdraw_50"),
+        InlineKeyboardButton("100 ⭐️", callback_data="ref_withdraw_100"),
+    )
+    markup.add(InlineKeyboardButton("❌ Отмена", callback_data="ref_withdraw_cancel"))
+    return markup
+
+def confirm_ref_withdraw_button(order_number, user_id):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("✅ Подтвердить вывод Stars", callback_data=f"confirm_ref_withdraw_{order_number}_{user_id}"))
+    return markup
+
+@bot.callback_query_handler(func=lambda call: call.data == "ref_withdraw_menu")
+def ref_withdraw_menu(call):
+    bot.answer_callback_query(call.id)
+    user_id = call.message.chat.id
+    ud = get_or_create_user(user_id)
+    balance = ud.get("stars_balance", 0)
+    bot.send_message(
+        user_id,
+        f"⭐️ *Вывод реферальных звёзд*\n\n"
+        f"💫 Ваш баланс: *{balance} ⭐️*\n\n"
+        f"Выберите количество для вывода:",
+        reply_markup=ref_withdraw_amounts_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "ref_withdraw_cancel")
+def ref_withdraw_cancel(call):
+    bot.answer_callback_query(call.id)
+    bot.edit_message_text("❌ Вывод отменён.", call.message.chat.id, call.message.message_id)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("ref_withdraw_") and "_" in call.data and call.data.split("_")[2].isdigit())
+def ref_withdraw_amount(call):
+    bot.answer_callback_query(call.id)
+    user_id = call.message.chat.id
+    ud = get_or_create_user(user_id)
+    balance = ud.get("stars_balance", 0)
+    amount = int(call.data.split("_")[2])
+
+    if balance < amount:
+        bot.send_message(
+            user_id,
+            f"❌ *Недостаточно звёзд!*\n\n"
+            f"💫 Ваш баланс: *{balance} ⭐️*\n"
+            f"🔢 Запрошено: *{amount} ⭐️*\n\n"
+            f"Пригласите больше друзей по реферальной ссылке!",
+            parse_mode="Markdown"
+        )
+        return
+
+    bot.edit_message_text(
+        f"⭐️ Вывод *{amount} ⭐️*\n\n👤 Введите юзернейм Telegram для получения звёзд:\n_(например: @username)_",
+        user_id, call.message.message_id, parse_mode="Markdown"
+    )
+    msg = bot.send_message(user_id, "✏️ Введите юзернейм:", reply_markup=main_menu())
+    bot.register_next_step_handler(msg, process_ref_withdraw_username, amount)
+
+def process_ref_withdraw_username(message, amount):
+    if message.text in MENU_BUTTONS:
+        handle_menu(message)
+        return
+    user_id = message.chat.id
+    ud = get_or_create_user(user_id)
+    balance = ud.get("stars_balance", 0)
+
+    if balance < amount:
+        bot.send_message(user_id,
+            f"❌ *Недостаточно звёзд!* Баланс: *{balance} ⭐️*",
+            reply_markup=main_menu(), parse_mode="Markdown")
+        return
+
+    username_target = message.text
+    order_number = generate_order_number()
+    now = format_kyiv_time()
+    ud["stars_balance"] -= amount
+
+    user_orders[user_id] = {
+        "order_number": order_number, "amount": amount,
+        "total": 0, "wallet": username_target,
+        "crypto": "Stars", "date": now, "type": "ref_withdraw"
+    }
+
+    bot.send_message(
+        user_id,
+        f"✅ *Заявка на вывод принята!*\n\n"
+        f"⭐️ Выводите: *{amount} Stars*\n"
+        f"👤 На аккаунт: `{username_target}`\n"
+        f"📞 Номер заказа: *#{order_number}*\n\n"
+        f"💫 Остаток на балансе: *{ud['stars_balance']} ⭐️*\n\n"
+        f"⏳ Stars будут отправлены в ближайшее время.",
+        reply_markup=main_menu(), parse_mode="Markdown"
+    )
+
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID: {user_id}"
+    for admin_id in ADMINS:
+        bot.send_message(
+            admin_id,
+            f"⭐️ *ВЫВОД РЕФ. STARS #{order_number}*\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 {username} | 🆔 `{user_id}`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⭐️ Количество: *{amount} Stars*\n"
+            f"👤 На аккаунт: `{username_target}`\n"
+            f"🕐 {now}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ Ожидает отправки",
+            parse_mode="Markdown",
+            reply_markup=confirm_ref_withdraw_button(order_number, user_id)
+        )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_ref_withdraw_"))
+def confirm_ref_withdraw(call):
+    if call.from_user.id not in ADMINS:
+        bot.answer_callback_query(call.id, "❌ Нет доступа!")
+        return
+    parts = call.data.split("_")
+    order_number = parts[3]
+    user_id = int(parts[4])
+    bot.send_message(
+        user_id,
+        f"🎉 *Реферальные звёзды отправлены!*\n\n"
+        f"⭐️ Stars зачислены на ваш аккаунт.\n"
+        f"💎 Спасибо за использование нашего сервиса! ❤️",
+        reply_markup=leave_comment_button(), parse_mode="Markdown"
+    )
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.answer_callback_query(call.id, f"✅ Вывод Stars #{order_number} подтверждён!")
+    bot.send_message(call.message.chat.id,
+                     f"✅ Вывод Stars *#{order_number}* подтверждён, клиент уведомлён!",
+                     parse_mode="Markdown")
 
 # ========== ОТЗЫВЫ ==========
 
