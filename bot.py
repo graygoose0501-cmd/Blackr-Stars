@@ -29,11 +29,11 @@ def format_date_only(dt=None):
 
 # ===== КУРСИ =====
 TON_BUY_RATE = 72.3
-TON_SELL_RATE = 70.0
+TON_SELL_RATE = 72.3
 USDT_BUY_RATE = 41.5
-USDT_SELL_RATE = 40.0
+USDT_SELL_RATE = 41.5
 STARS_BUY_RATE = 0.76
-STARS_SELL_RATE = 0.40
+STARS_SELL_RATE = 0.76
 STARS_MIN_SELL = 50
 STARS_MIN_BUY = 50
 # =================
