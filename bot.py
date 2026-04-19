@@ -132,15 +132,23 @@ MENU_BUTTONS = [
 ]
 
 def handle_menu(message):
-    t = message.text
-    if t == "💎 TON": ton_menu(message)
-    elif t == "💵 USDT": usdt_menu(message)
-    elif t == "⭐️ Купить Stars": buy_stars(message)
-    elif t == "🌟 Продать Stars": sell_stars(message)
-    elif t == "👤 Профиль": profile(message)
-    elif t == "✨ Отзывы": reviews(message)
-    elif t == "🛠 Поддержка": support(message)
-    elif t == "🧮 Калькулятор": calculator(message)
+    if message.text == "TON":
+        ton_menu(message)
+    elif message.text == "USDT":
+        usdt_menu(message)
+    elif message.text == "Купить Stars":
+        buy_stars(message)
+    elif message.text == "Продать Stars":
+        sell_stars(message)
+    elif message.text == "Профиль":
+        profile(message)
+    elif message.text == "Отзывы":
+        reviews(message)
+    elif message.text == "Поддержка":
+        support(message)
+    elif message.text == "Калькулятор":
+        calculator(message)
+
 
 # ===== INLINE КНОПКИ =====
 def confirm_button(order_number, user_id, action_type="buy", order_info=""):
