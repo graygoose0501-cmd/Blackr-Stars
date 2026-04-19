@@ -6,7 +6,7 @@ import pytz
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = os.environ.get("TOKEN")
-BOT_USERNAME = "BlackrStars_Bot"  # ← замени на юзернейм бота без @
+BOT_USERNAME = "YourBotUsername"  # ← замени на юзернейм бота без @
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -827,7 +827,11 @@ def save_comment_photo(message):
     review_number = review_counter
     review_counter += 1
 
-    stars_display = "⭐️" * rating
+    # Оценка в столбик: выбранная строка помечается ✅
+    stars_display = "\n".join(
+        f"{'⭐️' * i}  ✅" if i == rating else f"{'⭐️' * i}"
+        for i in range(1, 6)
+    )
 
     # Данные о последнем заказе для отзыва
     order_data = user_orders.get(message.chat.id, {})
@@ -838,7 +842,7 @@ def save_comment_photo(message):
         f"🆔 Клиент: {user_name}\n"
         f"📝 Коментарий: {comment}\n"
         f"📅 Дата: {date}\n\n"
-        f"🌟 Оценка: {stars_display}\n\n"
+        f"🌟 Оценка:\n{stars_display}\n\n"
         f"💫 Выведено: {withdrawn_now} ⭐️\n"
         f"📊 Всего выведено: {total_stars_withdrawn} ⭐️"
     )
