@@ -95,29 +95,56 @@ def generate_order_number():
 # ===== МЕНЮ =====
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 TON"), KeyboardButton("💵 USDT"))
-    markup.row(KeyboardButton("⭐️ Купить Stars"), KeyboardButton("🌟 Продать Stars"))
-    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("✨ Отзывы"))
-    markup.row(KeyboardButton("🛠 Поддержка"), KeyboardButton("🧮 Калькулятор"))
+    
+    # ID ваших кастомных эмодзи
+    EMOJI_TON = "5078343973303485905"
+    EMOJI_USDT = "5080137014775383220"
+    EMOJI_STARS_BUY = "5469641199348363998"
+    EMOJI_STARS_SELL = "5469744063815102906"
+    EMOJI_PROFILE = "5280781432824802048"
+    EMOJI_REVIEWS = "5303138782004924588"
+    EMOJI_SUPPORT = "5413623448440160154"
+    EMOJI_CALC = "5303214794336125778"
+    
+    # Первый ряд - синий (TON и USDT)
+    markup.row(
+        KeyboardButton("TON", style="primary", icon_custom_emoji_id=EMOJI_TON),
+        KeyboardButton("USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT)
+    )
+    # Второй ряд - синий (Stars покупка и продажа)
+    markup.row(
+        KeyboardButton("Купить Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_BUY),
+        KeyboardButton("Продать Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_SELL)
+    )
+    # Третий ряд - зеленый (Профиль и Отзывы)
+    markup.row(
+        KeyboardButton("Профиль", style="success", icon_custom_emoji_id=EMOJI_PROFILE),
+        KeyboardButton("Отзывы", style="success", icon_custom_emoji_id=EMOJI_REVIEWS)
+    )
+    # Четвертый ряд - красный (Поддержка и Калькулятор)
+    markup.row(
+        KeyboardButton("Поддержка", style="danger", icon_custom_emoji_id=EMOJI_SUPPORT),
+        KeyboardButton("Калькулятор", style="danger", icon_custom_emoji_id=EMOJI_CALC)
+    )
     return markup
 
 MENU_BUTTONS = [
-    "💎 TON", "💵 USDT",
-    "⭐️ Купить Stars", "🌟 Продать Stars",
-    "👤 Профиль", "✨ Отзывы",
-    "🛠 Поддержка", "🧮 Калькулятор"
+    "TON", "USDT",
+    "Купить Stars", "Продать Stars",
+    "Профиль", "Отзывы",
+    "Поддержка", "Калькулятор"
 ]
 
 def handle_menu(message):
     t = message.text
-    if t == "💎 TON": ton_menu(message)
-    elif t == "💵 USDT": usdt_menu(message)
-    elif t == "⭐️ Купить Stars": buy_stars(message)
-    elif t == "🌟 Продать Stars": sell_stars(message)
-    elif t == "👤 Профиль": profile(message)
-    elif t == "✨ Отзывы": reviews(message)
-    elif t == "🛠 Поддержка": support(message)
-    elif t == "🧮 Калькулятор": calculator(message)
+    if t == "TON": ton_menu(message)
+    elif t == "USDT": usdt_menu(message)
+    elif t == "Купить Stars": buy_stars(message)
+    elif t == "Продать Stars": sell_stars(message)
+    elif t == "Профиль": profile(message)
+    elif t == "Отзывы": reviews(message)
+    elif t == "Поддержка": support(message)
+    elif t == "Калькулятор": calculator(message)
 
 # ===== INLINE КНОПКИ =====
 def confirm_button(order_number, user_id, action_type="buy", order_info=""):
@@ -272,7 +299,7 @@ def start(message):
 
 # ========== TON МЕНЮ ==========
 
-@bot.message_handler(func=lambda m: m.text == "💎 TON")
+@bot.message_handler(func=lambda m: m.text == "TON")
 def ton_menu(message):
     bot.send_message(
         message.chat.id,
@@ -408,7 +435,7 @@ def process_sell_ton_card(message, amount, total):
 
 # ========== USDT МЕНЮ ==========
 
-@bot.message_handler(func=lambda m: m.text == "💵 USDT")
+@bot.message_handler(func=lambda m: m.text == "USDT")
 def usdt_menu(message):
     bot.send_message(message.chat.id,
         f"💵 *USDT*\n\nКурс покупки: *{USDT_BUY_RATE} грн*\nКурс продажи: *{USDT_SELL_RATE} грн*\n\nВыберите действие:",
@@ -538,7 +565,7 @@ def process_sell_usdt_card(message, amount, total):
 
 # ========== STARS КУПИТЬ ==========
 
-@bot.message_handler(func=lambda m: m.text == "⭐️ Купить Stars")
+@bot.message_handler(func=lambda m: m.text == "Купить Stars")
 def buy_stars(message):
     bot.send_message(message.chat.id, "⭐️ *Для кого покупаем Telegram Stars?*",
                      reply_markup=for_who_buttons("stars"), parse_mode="Markdown")
@@ -643,7 +670,7 @@ def finish_stars_order(message, amount, stars_type, username_target):
 
 # ========== STARS ПРОДАТЬ ==========
 
-@bot.message_handler(func=lambda m: m.text == "🌟 Продать Stars")
+@bot.message_handler(func=lambda m: m.text == "Продать Stars")
 def sell_stars(message):
     bot.send_message(message.chat.id,
         f"🌟 *Хочешь продать свои звёзды Telegram?*\n\n"
@@ -1054,7 +1081,7 @@ def save_comment_photo(message):
 
 # ========== ПРОФИЛЬ ==========
 
-@bot.message_handler(func=lambda m: m.text == "👤 Профиль")
+@bot.message_handler(func=lambda m: m.text == "Профиль")
 def profile(message):
     user_id = message.chat.id
     ud = get_or_create_user(user_id)
@@ -1236,7 +1263,7 @@ def confirm_ref_withdraw(call):
 
 # ========== ОТЗЫВЫ ==========
 
-@bot.message_handler(func=lambda m: m.text == "✨ Отзывы")
+@bot.message_handler(func=lambda m: m.text == "Отзывы")
 def reviews(message):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("📢 Перейти в канал отзывов", url="https://t.me/BlackrStars"))
@@ -1248,7 +1275,7 @@ def reviews(message):
 
 # ========== ПОДДЕРЖКА ==========
 
-@bot.message_handler(func=lambda m: m.text == "🛠 Поддержка")
+@bot.message_handler(func=lambda m: m.text == "Поддержка")
 def support(message):
     bot.send_message(message.chat.id,
         "😊 *Есть вопросы?* Нажимай «Написать» — мы с радостью поможем! 😺\n\n"
@@ -1387,7 +1414,7 @@ def user_close_ticket(call):
 
 # ========== КАЛЬКУЛЯТОР ==========
 
-@bot.message_handler(func=lambda m: m.text == "🧮 Калькулятор")
+@bot.message_handler(func=lambda m: m.text == "Калькулятор")
 def calculator(message):
     bot.send_message(message.chat.id, "🧮 *Калькулятор Stars*\n\nВыбери направление 👇",
                      reply_markup=calculator_keyboard(), parse_mode="Markdown")
