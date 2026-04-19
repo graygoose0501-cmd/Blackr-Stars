@@ -958,12 +958,12 @@ def build_review_stats(user_id, order_data):
     elif crypto == "USDT":
         lines.append(f"💵 Куплено USDT: *{amount}*")
 
-    # Всего накопительно — всегда показываем все типы если > 0
-    if bought_stars_total > 0:
+    # Всего накопительно — только для того же типа что и текущий заказ
+    if crypto == "Stars" and bought_stars_total > 0:
         lines.append(f"⭐️ Куплено Stars всего: *{bought_stars_total}*")
-    if bought_ton_total > 0:
+    elif crypto == "TON" and bought_ton_total > 0:
         lines.append(f"💎 Куплено TON всего: *{bought_ton_total}*")
-    if bought_usdt_total > 0:
+    elif crypto == "USDT" and bought_usdt_total > 0:
         lines.append(f"💵 Куплено USDT всего: *{bought_usdt_total}*")
 
     return "\n".join(lines) if lines else "—"
