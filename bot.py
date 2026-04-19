@@ -96,18 +96,41 @@ def generate_order_number():
 # ===== МЕНЮ =====
 def main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    markup.row(KeyboardButton("💎 TON"), KeyboardButton("💵 USDT"))
-    markup.row(KeyboardButton("⭐️ Купить Stars"), KeyboardButton("🌟 Продать Stars"))
-    markup.row(KeyboardButton("👤 Профиль"), KeyboardButton("✨ Отзывы"))
-    markup.row(KeyboardButton("🛠 Поддержка"), KeyboardButton("🧮 Калькулятор"))
+    
+    EMOJI_TON = "5078343973303485905"
+    EMOJI_USDT = "5080137014775383220"
+    EMOJI_STARS_BUY = "5469641199348363998"
+    EMOJI_STARS_SELL = "5469744063815102906"
+    EMOJI_PROFILE = "5280781432824802048"
+    EMOJI_REVIEWS = "5303138782004924588"
+    EMOJI_SUPPORT = "5413623448440160154"
+    EMOJI_CALC = "5303214794336125778"
+    
+    markup.row(
+        KeyboardButton("TON", style="primary", icon_custom_emoji_id=EMOJI_TON),
+        KeyboardButton("USDT", style="primary", icon_custom_emoji_id=EMOJI_USDT)
+    )
+    markup.row(
+        KeyboardButton("Купить Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_BUY),
+        KeyboardButton("Продать Stars", style="primary", icon_custom_emoji_id=EMOJI_STARS_SELL)
+    )
+    markup.row(
+        KeyboardButton("Профиль", style="success", icon_custom_emoji_id=EMOJI_PROFILE),
+        KeyboardButton("Отзывы", style="success", icon_custom_emoji_id=EMOJI_REVIEWS)
+    )
+    markup.row(
+        KeyboardButton("Поддержка", style="danger", icon_custom_emoji_id=EMOJI_SUPPORT),
+        KeyboardButton("Калькулятор", style="danger", icon_custom_emoji_id=EMOJI_CALC)
+    )
     return markup
-
+    
 MENU_BUTTONS = [
-    "💎 TON", "💵 USDT",
-    "⭐️ Купить Stars", "🌟 Продать Stars",
-    "👤 Профиль", "✨ Отзывы",
-    "🛠 Поддержка", "🧮 Калькулятор"
+    "TON", "USDT",
+    "Купить Stars", "Продать Stars",
+    "Профиль", "Отзывы",
+    "Поддержка", "Калькулятор"
 ]
+
 
 def handle_menu(message):
     t = message.text
