@@ -945,23 +945,27 @@ def build_review_stats(user_id, order_data):
     bought_ton = ud.get("bought_ton", 0.0)
     bought_usdt = ud.get("bought_usdt", 0.0)
 
-    lines = []
-    if bought_stars > 0:
-        lines.append(f"⭐️ Куплено Stars: *{bought_stars}*")
-    if bought_ton > 0:
-        lines.append(f"💎 Куплено TON: *{bought_ton}*")
-    if bought_usdt > 0:
-        lines.append(f"💵 Куплено USDT: *{bought_usdt}*")
+    crypto = order_data.get("crypto", "")
+    amount = order_data.get("amount", 0)
 
-    if not lines:
-        crypto = order_data.get("crypto", "")
-        amount = order_data.get("amount", 0)
-        if crypto == "Stars":
-            lines.append(f"⭐️ Куплено Stars: *{amount}*")
-        elif crypto == "TON":
-            lines.append(f"💎 Куплено TON: *{amount}*")
-        elif crypto == "USDT":
-            lines.append(f"💵 Куплено USDT: *{amount}*")
+    lines = []
+
+    if crypto == "Stars":
+        lines.append(f"⭐️ Куплено Stars: *{amount}*")
+        lines.append(f"⭐️ Куплено Stars всего: *{bought_stars}*")
+    elif crypto == "TON":
+        lines.append(f"💎 Куплено TON: *{amount}*")
+        lines.append(f"💎 Куплено TON всего: *{bought_ton}*")
+    elif crypto == "USDT":
+        lines.append(f"💵 Куплено USDT: *{amount}*")
+        lines.append(f"💵 Куплено USDT всего: *{bought_usdt}*")
+    else:
+        if bought_stars > 0:
+            lines.append(f"⭐️ Куплено Stars всего: *{bought_stars}*")
+        if bought_ton > 0:
+            lines.append(f"💎 Куплено TON всего: *{bought_ton}*")
+        if bought_usdt > 0:
+            lines.append(f"💵 Куплено USDT всего: *{bought_usdt}*")
 
     return "\n".join(lines) if lines else "—"
 
@@ -985,17 +989,21 @@ def save_comment_no_photo(message):
     review_number = review_counter
     review_counter += 1
 
-    stars_display = f"{'⭐️' * rating} ({rating}/5)"
+    stars_display = "⭐️" * rating
     order_data = user_orders.get(message.chat.id, {})
     stats = build_review_stats(message.chat.id, order_data)
 
+    username_display = message.from_user.username
+    client_name = f"@{username_display}" if username_display else user_name
+
     caption = (
-        f"📊 *Отзыв №{review_number}*\n\n"
-        f"🆔 Клиент: {user_name}\n"
+        f"📊 *Отзыв №{review_number}*\n"
+        f"🆔 Клиент: {client_name}\n"
         f"📝 Комментарий: {comment}\n"
-        f"📅 Дата: {date}\n\n"
+        f"📅 Дата: {date}\n"
         f"🌟 Оценка: {stars_display}\n\n"
-        f"📈 Статистика покупок:\n{stats}"
+        f"📈 Статистика покупок:\n{stats}\n\n"
+        f"🎯 FluxStar Bot — ваш надёжный партнёр! 🚀"
     )
 
     bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
@@ -1025,17 +1033,21 @@ def save_comment_photo(message):
     review_number = review_counter
     review_counter += 1
 
-    stars_display = f"{'⭐️' * rating} ({rating}/5)"
+    stars_display = "⭐️" * rating
     order_data = user_orders.get(message.chat.id, {})
     stats = build_review_stats(message.chat.id, order_data)
 
+    username_display = message.from_user.username
+    client_name = f"@{username_display}" if username_display else user_name
+
     caption = (
-        f"📊 *Отзыв №{review_number}*\n\n"
-        f"🆔 Клиент: {user_name}\n"
+        f"📊 *Отзыв №{review_number}*\n"
+        f"🆔 Клиент: {client_name}\n"
         f"📝 Комментарий: {comment}\n"
-        f"📅 Дата: {date}\n\n"
+        f"📅 Дата: {date}\n"
         f"🌟 Оценка: {stars_display}\n\n"
-        f"📈 Статистика покупок:\n{stats}"
+        f"📈 Статистика покупок:\n{stats}\n\n"
+        f"🎯 FluxStar Bot — ваш надёжный партнёр! 🚀"
     )
 
     bot.send_message(message.chat.id, "⭐ Спасибо за ваш отзыв!", reply_markup=main_menu())
